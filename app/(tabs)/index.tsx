@@ -9,6 +9,8 @@ import {
   Check,
   Circle,
   Target,
+  Dumbbell,
+  ChevronRight,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 
@@ -31,6 +33,11 @@ export default function CommandCenterScreen() {
   ];
 
   const fastingProgress = (fastingHours * 60 + fastingMinutes) / (targetHours * 60);
+
+  // Workout data
+  const workedOutToday = false;
+  const weeklyWorkouts = 3;
+  const weeklyTarget = 4;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -165,6 +172,20 @@ export default function CommandCenterScreen() {
           </View>
         </View>
 
+        {/* Workout */}
+        <Pressable
+          style={({ pressed }) => [styles.workoutCard, pressed && styles.cardPressed]}
+        >
+          <Dumbbell color={colors.accent.purple} size={36} />
+          <View style={styles.workoutInfo}>
+            <Text style={styles.workoutStatus}>
+              {workedOutToday ? 'Done for today' : 'Start your workout'}
+            </Text>
+            <Text style={styles.workoutWeekly}>{weeklyWorkouts}/{weeklyTarget} this week</Text>
+          </View>
+          <ChevronRight color={colors.text.dim} size={20} />
+        </Pressable>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -200,7 +221,7 @@ const styles = StyleSheet.create({
   },
   streakCount: {
     fontSize: fontSize.xxxl,
-    fontWeight: '700',
+    fontWeight: '200',
     color: colors.text.primary,
     lineHeight: fontSize.xxxl + 4,
   },
@@ -421,5 +442,28 @@ const styles = StyleSheet.create({
   },
   supplementNameTaken: {
     color: colors.accent.green,
+  },
+
+  // Workout
+  workoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  workoutInfo: {
+    flex: 1,
+  },
+  workoutStatus: {
+    fontSize: fontSize.xl,
+    fontWeight: '200',
+    color: colors.text.primary,
+  },
+  workoutWeekly: {
+    fontSize: fontSize.xs,
+    color: colors.text.dim,
+    marginTop: spacing.xs,
   },
 });
