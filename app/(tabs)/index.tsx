@@ -1,23 +1,37 @@
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import { useState, useCallback } from 'react';
 import {
   Flame,
   Timer,
   Play,
   Pause,
-  Pill,
   Check,
   Circle,
   Target,
   Dumbbell,
   ChevronRight,
+  Droplets,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFastingState } from '@/hooks/useFastingState';
+import { useSupplements, useMealEntries, type SupplementWithValue } from '@/db';
 
 export default function CommandCenterScreen() {
+  const router = useRouter();
+
   // Fasting state from hook
   const { isFasting, hours, minutes, progress } = useFastingState();
+
+  // Database hooks
+  const { getSupplementsForDate, toggleSupplement, incrementSupplement, getToday } = useSupplements();
+  const { getTotalsForDate } = useMealEntries();
+
+  // State
+  const [supplements, setSupplements] = useState<SupplementWithValue[]>([]);
+  const [totals, setTotals] = useState({ protein: 0, calories: 0 });
 
   // Mock data - will be replaced with real state
   const currentDay = 7;
@@ -25,17 +39,47 @@ export default function CommandCenterScreen() {
   const isSitting = false;
   const sittingMinutes = 23;
 
-  const supplements = [
-    { name: 'Creatine', taken: true },
-    { name: 'Omega-3', taken: true },
-    { name: 'Vitamin D', taken: false },
-    { name: 'Magnesium', taken: false },
-  ];
-
   // Workout data
   const workedOutToday = false;
   const weeklyWorkouts = 3;
   const weeklyTarget = 4;
+
+  // Load data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadData = async () => {
+        const today = getToday();
+        const [supps, tots] = await Promise.all([
+          getSupplementsForDate(today),
+          getTotalsForDate(today),
+        ]);
+        setSupplements(supps);
+        setTotals(tots);
+      };
+      loadData();
+    }, [getSupplementsForDate, getTotalsForDate, getToday])
+  );
+
+  // Handle supplement tap
+  const handleSupplementPress = useCallback(async (supp: SupplementWithValue) => {
+    const today = getToday();
+
+    if (supp.target === 1) {
+      // Toggle for pills
+      await toggleSupplement(supp.id, today);
+    } else {
+      // Increment for water (wraps back to 0 after hitting target)
+      await incrementSupplement(supp.id, today, supp.target);
+    }
+
+    // Refresh
+    const updated = await getSupplementsForDate(today);
+    setSupplements(updated);
+  }, [getToday, toggleSupplement, incrementSupplement, getSupplementsForDate]);
+
+  // Separate water from other supplements for different rendering
+  const pillSupplements = supplements.filter(s => s.target === 1);
+  const waterSupplement = supplements.find(s => s.name === 'Water');
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -133,49 +177,82 @@ export default function CommandCenterScreen() {
               styles.logFoodCard,
               pressed && styles.cardPressed
             ]}
+            onPress={() => router.push('/nutrition/opener')}
           >
             <View style={styles.logFoodContent}>
-              <Text style={styles.proteinValue}>142g</Text>
+              <Text style={styles.proteinValue}>{Math.round(totals.protein)}g</Text>
               <View style={styles.proteinLabelRow}>
                 <Target color={colors.accent.green} size={14} />
                 <Text style={styles.proteinLabel}>protein</Text>
               </View>
-              <Text style={styles.calsValue}>2,847 cal</Text>
+              <Text style={styles.calsValue}>{totals.calories.toLocaleString()} cal</Text>
             </View>
           </Pressable>
         </View>
 
-        {/* Daily Stack */}
+        {/* Daily Stack - Pills */}
         <View style={styles.card}>
           <View style={styles.supplementGrid}>
-            {supplements.map((supplement, index) => (
-              <Pressable
-                key={index}
-                style={({ pressed }) => [
-                  styles.supplementCell,
-                  supplement.taken && styles.supplementCellTaken,
-                  pressed && styles.supplementPressed
-                ]}
-              >
-                <View style={[
-                  styles.supplementCheck,
-                  supplement.taken && styles.supplementCheckActive
-                ]}>
-                  {supplement.taken ? (
-                    <Check color={colors.background.primary} size={16} strokeWidth={3} />
-                  ) : (
-                    <Circle color={colors.text.dim} size={16} />
-                  )}
-                </View>
-                <Text style={[
-                  styles.supplementName,
-                  supplement.taken && styles.supplementNameTaken
-                ]}>
-                  {supplement.name}
-                </Text>
-              </Pressable>
-            ))}
+            {pillSupplements.map((supplement) => {
+              const isComplete = supplement.value >= supplement.target;
+              return (
+                <Pressable
+                  key={supplement.id}
+                  style={({ pressed }) => [
+                    styles.supplementCell,
+                    isComplete && styles.supplementCellTaken,
+                    pressed && styles.supplementPressed
+                  ]}
+                  onPress={() => handleSupplementPress(supplement)}
+                >
+                  <View style={[
+                    styles.supplementCheck,
+                    isComplete && styles.supplementCheckActive
+                  ]}>
+                    {isComplete ? (
+                      <Check color={colors.background.primary} size={16} strokeWidth={3} />
+                    ) : (
+                      <Circle color={colors.text.dim} size={16} />
+                    )}
+                  </View>
+                  <Text style={[
+                    styles.supplementName,
+                    isComplete && styles.supplementNameTaken
+                  ]}>
+                    {supplement.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
+
+          {/* Water Counter */}
+          {waterSupplement && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.waterRow,
+                pressed && styles.supplementPressed
+              ]}
+              onPress={() => handleSupplementPress(waterSupplement)}
+            >
+              <Droplets color={colors.accent.blue} size={20} />
+              <Text style={styles.waterLabel}>Water</Text>
+              <View style={styles.waterDots}>
+                {Array.from({ length: waterSupplement.target }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.waterDot,
+                      i < waterSupplement.value && styles.waterDotFilled
+                    ]}
+                  />
+                ))}
+              </View>
+              <Text style={styles.waterCount}>
+                {waterSupplement.value}/{waterSupplement.target}L
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Workout */}
@@ -259,32 +336,6 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  cardIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  cardLabel: {
-    fontSize: fontSize.xs,
-    fontWeight: '600',
-    color: colors.text.muted,
-    letterSpacing: 1.5,
-    flex: 1,
-  },
-  cardCount: {
-    fontSize: fontSize.sm,
-    color: colors.text.dim,
-    fontWeight: '500',
   },
 
   // Fasting Card
@@ -454,9 +505,48 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text.secondary,
     fontWeight: '500',
+    flex: 1,
   },
   supplementNameTaken: {
     color: colors.accent.green,
+  },
+
+  // Water
+  waterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.background.tertiary,
+    gap: spacing.sm,
+  },
+  waterLabel: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
+  waterDots: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  waterDot: {
+    width: 24,
+    height: 24,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.background.tertiary,
+    borderWidth: 2,
+    borderColor: colors.accent.blue + '30',
+  },
+  waterDotFilled: {
+    backgroundColor: colors.accent.blue,
+    borderColor: colors.accent.blue,
+  },
+  waterCount: {
+    fontSize: fontSize.sm,
+    color: colors.accent.blue,
+    fontWeight: '600',
   },
 
   // Workout

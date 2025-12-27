@@ -1,8 +1,11 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Sunrise, Sun, Sunset, PenLine } from 'lucide-react-native';
+import { useState, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
+import { useMealEntries, type MealEntry } from '@/db';
 
 const meals = [
   { id: 'opener', name: 'Opener', time: '12 PM', icon: Sunrise, color: colors.accent.orange },
@@ -10,38 +13,43 @@ const meals = [
   { id: 'closer', name: 'Closer', time: '6 PM', icon: Sunset, color: colors.accent.purple },
 ];
 
-// Mock logged food data
-const loggedFood = [
-  {
-    time: '12:15 PM',
-    items: [
-      { name: 'Greek Yogurt', protein: 17 },
-      { name: 'Eggs (2)', protein: 12 },
-    ],
-  },
-  {
-    time: '3:30 PM',
-    items: [
-      { name: 'Protein Shake', protein: 25 },
-    ],
-  },
-  {
-    time: '6:45 PM',
-    items: [
-      { name: 'Chicken Breast', protein: 31 },
-      { name: 'Salmon Fillet', protein: 25 },
-      { name: 'Cottage Cheese', protein: 14 },
-    ],
-  },
-];
+const TARGET_PROTEIN = 160;
+
+// Format ISO timestamp to display time (e.g., "12:15 PM")
+function formatTime(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
 
 export default function NutritionScreen() {
   const router = useRouter();
+  const { getEntriesForDate, getTotalsForDate, getToday } = useMealEntries();
 
-  // Mock today's stats
-  const todayProtein = 124;
-  const targetProtein = 160;
-  const todayCals = 2847;
+  // State
+  const [entries, setEntries] = useState<MealEntry[]>([]);
+  const [totals, setTotals] = useState({ protein: 0, calories: 0 });
+
+  // Load data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadData = async () => {
+        const today = getToday();
+        const [entriesData, totalsData] = await Promise.all([
+          getEntriesForDate(today),
+          getTotalsForDate(today),
+        ]);
+        setEntries(entriesData);
+        setTotals(totalsData);
+      };
+      loadData();
+    }, [getEntriesForDate, getTotalsForDate, getToday])
+  );
+
+  const progressPercent = Math.min((totals.protein / TARGET_PROTEIN) * 100, 100);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -51,15 +59,16 @@ export default function NutritionScreen() {
         {/* Today's Stats */}
         <View style={styles.statsCard}>
           <View style={styles.proteinRow}>
-            <Text style={styles.proteinValue}>{todayProtein}</Text>
-            <Text style={styles.proteinTarget}>/ {targetProtein}g</Text>
-            <Text style={styles.calsValue}>{todayCals.toLocaleString()} cal</Text>
+            <Text style={styles.proteinValue}>{Math.round(totals.protein)}</Text>
+            <Text style={styles.proteinTarget}>/ {TARGET_PROTEIN}g</Text>
+            <Text style={styles.calsValue}>{totals.calories.toLocaleString()} cal</Text>
           </View>
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${(todayProtein / targetProtein) * 100}%` }]} />
+            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
           </View>
         </View>
 
+        {/* Meal Grid */}
         <View style={styles.mealGrid}>
           {meals.map((meal) => {
             const IconComponent = meal.icon;
@@ -90,26 +99,36 @@ export default function NutritionScreen() {
         </Pressable>
 
         {/* Timeline */}
-        <View style={styles.timeline}>
-          {loggedFood.map((entry, index) => (
-            <View key={index} style={styles.timelineEntry}>
-              <View style={styles.timelineLeft}>
-                <Text style={styles.timelineTime}>{entry.time}</Text>
-                <View style={styles.timelineLine} />
-              </View>
-              <View style={styles.timelineContent}>
-                <View style={styles.foodItems}>
-                  {entry.items.map((item, itemIndex) => (
-                    <View key={itemIndex} style={styles.foodChip}>
-                      <Text style={styles.foodName}>{item.name}</Text>
-                      <Text style={styles.foodProtein}>{item.protein}g</Text>
-                    </View>
-                  ))}
+        {entries.length > 0 && (
+          <View style={styles.timeline}>
+            {entries.map((entry) => (
+              <View key={entry.id} style={styles.timelineEntry}>
+                <View style={styles.timelineLeft}>
+                  <Text style={styles.timelineTime}>{formatTime(entry.logged_at)}</Text>
+                  <View style={styles.timelineLine} />
+                </View>
+                <View style={styles.timelineContent}>
+                  <View style={styles.foodItems}>
+                    {entry.items.map((item) => (
+                      <View key={item.id} style={styles.foodChip}>
+                        <Text style={styles.foodName}>{item.name}</Text>
+                        <Text style={styles.foodProtein}>{Math.round(item.protein * item.quantity)}g</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
+
+        {/* Empty state */}
+        {entries.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No food logged today</Text>
+            <Text style={styles.emptyStateSubtext}>Tap a meal above to start tracking</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -219,7 +238,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   timelineLeft: {
-    width: 70,
+    width: 80,
     alignItems: 'flex-end',
     paddingRight: spacing.md,
   },
@@ -260,5 +279,21 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.accent.green,
     fontWeight: '600',
+  },
+
+  // Empty state
+  emptyState: {
+    marginTop: spacing.xl,
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  emptyStateText: {
+    fontSize: fontSize.md,
+    color: colors.text.muted,
+    marginBottom: spacing.xs,
+  },
+  emptyStateSubtext: {
+    fontSize: fontSize.sm,
+    color: colors.text.dim,
   },
 });
