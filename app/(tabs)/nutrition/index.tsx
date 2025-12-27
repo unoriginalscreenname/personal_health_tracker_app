@@ -1,0 +1,264 @@
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Sunrise, Sun, Sunset, PenLine } from 'lucide-react-native';
+import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
+
+const meals = [
+  { id: 'opener', name: 'Opener', time: '12 PM', icon: Sunrise, color: colors.accent.orange },
+  { id: 'bridge', name: 'Bridge', time: '3 PM', icon: Sun, color: colors.accent.blue },
+  { id: 'closer', name: 'Closer', time: '6 PM', icon: Sunset, color: colors.accent.purple },
+];
+
+// Mock logged food data
+const loggedFood = [
+  {
+    time: '12:15 PM',
+    items: [
+      { name: 'Greek Yogurt', protein: 17 },
+      { name: 'Eggs (2)', protein: 12 },
+    ],
+  },
+  {
+    time: '3:30 PM',
+    items: [
+      { name: 'Protein Shake', protein: 25 },
+    ],
+  },
+  {
+    time: '6:45 PM',
+    items: [
+      { name: 'Chicken Breast', protein: 31 },
+      { name: 'Salmon Fillet', protein: 25 },
+      { name: 'Cottage Cheese', protein: 14 },
+    ],
+  },
+];
+
+export default function NutritionScreen() {
+  const router = useRouter();
+
+  // Mock today's stats
+  const todayProtein = 124;
+  const targetProtein = 160;
+  const todayCals = 2847;
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>Fuel Tank</Text>
+
+        {/* Today's Stats */}
+        <View style={styles.statsCard}>
+          <View style={styles.proteinRow}>
+            <Text style={styles.proteinValue}>{todayProtein}</Text>
+            <Text style={styles.proteinTarget}>/ {targetProtein}g</Text>
+            <Text style={styles.calsValue}>{todayCals.toLocaleString()} cal</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${(todayProtein / targetProtein) * 100}%` }]} />
+          </View>
+        </View>
+
+        <View style={styles.mealGrid}>
+          {meals.map((meal) => {
+            const IconComponent = meal.icon;
+            return (
+              <Pressable
+                key={meal.id}
+                style={({ pressed }) => [
+                  styles.mealCard,
+                  pressed && styles.mealCardPressed
+                ]}
+                onPress={() => router.push(`/nutrition/${meal.id}`)}
+              >
+                <IconComponent color={meal.color} size={32} style={{ marginBottom: spacing.sm }} />
+                <Text style={styles.mealName}>{meal.name}</Text>
+                <Text style={styles.mealTime}>{meal.time}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Log Food CTA */}
+        <Pressable
+          style={({ pressed }) => [styles.logButton, pressed && styles.logButtonPressed]}
+          onPress={() => router.push('/nutrition/opener')}
+        >
+          <PenLine color={colors.text.muted} size={16} />
+          <Text style={styles.logButtonText}>Log food</Text>
+        </Pressable>
+
+        {/* Timeline */}
+        <View style={styles.timeline}>
+          {loggedFood.map((entry, index) => (
+            <View key={index} style={styles.timelineEntry}>
+              <View style={styles.timelineLeft}>
+                <Text style={styles.timelineTime}>{entry.time}</Text>
+                <View style={styles.timelineLine} />
+              </View>
+              <View style={styles.timelineContent}>
+                <View style={styles.foodItems}>
+                  {entry.items.map((item, itemIndex) => (
+                    <View key={itemIndex} style={styles.foodChip}>
+                      <Text style={styles.foodName}>{item.name}</Text>
+                      <Text style={styles.foodProtein}>{item.protein}g</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+    padding: spacing.md,
+  },
+  title: {
+    fontSize: fontSize.xl,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  statsCard: {
+    marginBottom: spacing.lg,
+  },
+  proteinRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: spacing.sm,
+  },
+  proteinValue: {
+    fontSize: 48,
+    fontWeight: '200',
+    color: colors.accent.green,
+    fontVariant: ['tabular-nums'],
+  },
+  proteinTarget: {
+    fontSize: 28,
+    fontWeight: '200',
+    color: colors.text.dim,
+    fontVariant: ['tabular-nums'],
+  },
+  calsValue: {
+    fontSize: fontSize.xs,
+    color: colors.text.dim,
+    marginLeft: 'auto',
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.accent.green,
+    borderRadius: borderRadius.full,
+  },
+  mealGrid: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  mealCard: {
+    flex: 1,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  mealCardPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  mealName: {
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  mealTime: {
+    fontSize: fontSize.xs,
+    color: colors.text.dim,
+  },
+
+  // Log Button
+  logButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.primary,
+    borderRadius: borderRadius.md,
+  },
+  logButtonPressed: {
+    opacity: 0.7,
+    backgroundColor: colors.background.secondary,
+  },
+  logButtonText: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+  },
+
+  // Timeline
+  timeline: {
+    marginTop: spacing.xl,
+  },
+  timelineEntry: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+  },
+  timelineLeft: {
+    width: 70,
+    alignItems: 'flex-end',
+    paddingRight: spacing.md,
+  },
+  timelineTime: {
+    fontSize: fontSize.xs,
+    color: colors.text.dim,
+    marginBottom: spacing.xs,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: colors.background.tertiary,
+    marginTop: spacing.xs,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingBottom: spacing.md,
+  },
+  foodItems: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  foodChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    gap: spacing.xs,
+  },
+  foodName: {
+    fontSize: fontSize.xs,
+    color: colors.text.secondary,
+  },
+  foodProtein: {
+    fontSize: fontSize.xs,
+    color: colors.accent.green,
+    fontWeight: '600',
+  },
+});
