@@ -164,6 +164,27 @@ export function useMealEntries() {
     return { ...entry, items };
   }, [db]);
 
+  // Get all days that have entries (for settings/data management)
+  const getDaysWithEntries = useCallback(async (): Promise<string[]> => {
+    const result = await db.getAllAsync<{ date: string }>(
+      'SELECT DISTINCT date FROM meal_entries ORDER BY date DESC'
+    );
+    return result.map(r => r.date);
+  }, [db]);
+
+  // Delete all entries for a specific date
+  const deleteEntriesForDate = useCallback(async (date: string): Promise<void> => {
+    await db.runAsync(
+      'DELETE FROM meal_entries WHERE date = ?',
+      [date]
+    );
+  }, [db]);
+
+  // Delete all entries (reset database)
+  const deleteAllEntries = useCallback(async (): Promise<void> => {
+    await db.runAsync('DELETE FROM meal_entries');
+  }, [db]);
+
   return {
     getEntriesForDate,
     getTotalsForDate,
@@ -175,5 +196,8 @@ export function useMealEntries() {
     removeItem,
     deleteEntry,
     getEntry,
+    getDaysWithEntries,
+    deleteEntriesForDate,
+    deleteAllEntries,
   };
 }

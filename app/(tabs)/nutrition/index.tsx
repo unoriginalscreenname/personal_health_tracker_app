@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { Sunrise, Sun, Sunset, PenLine } from 'lucide-react-native';
+import { Sunrise, Sun, Sunset, PenLine, Settings } from 'lucide-react-native';
 import { useState, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useMealEntries, type MealEntry } from '@/db';
@@ -54,7 +54,16 @@ export default function NutritionScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Fuel Tank</Text>
+        {/* Header with settings */}
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Fuel Tank</Text>
+          <Pressable
+            style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
+            onPress={() => router.push('/nutrition/settings')}
+          >
+            <Settings color={colors.text.dim} size={20} />
+          </Pressable>
+        </View>
 
         {/* Today's Stats */}
         <View style={styles.statsCard}>
@@ -102,7 +111,11 @@ export default function NutritionScreen() {
         {entries.length > 0 && (
           <View style={styles.timeline}>
             {entries.map((entry) => (
-              <View key={entry.id} style={styles.timelineEntry}>
+              <Pressable
+                key={entry.id}
+                style={({ pressed }) => [styles.timelineEntry, pressed && styles.timelineEntryPressed]}
+                onPress={() => router.push(`/nutrition/entry/${entry.id}`)}
+              >
                 <View style={styles.timelineLeft}>
                   <Text style={styles.timelineTime}>{formatTime(entry.logged_at)}</Text>
                   <View style={styles.timelineLine} />
@@ -117,7 +130,7 @@ export default function NutritionScreen() {
                     ))}
                   </View>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}
@@ -140,11 +153,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.primary,
     padding: spacing.md,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
   title: {
     fontSize: fontSize.xl,
     fontWeight: '600',
     color: colors.text.primary,
-    marginBottom: spacing.md,
+  },
+  settingsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsButtonPressed: {
+    opacity: 0.5,
+    backgroundColor: colors.background.secondary,
   },
   statsCard: {
     marginBottom: spacing.lg,
@@ -236,6 +265,9 @@ const styles = StyleSheet.create({
   timelineEntry: {
     flexDirection: 'row',
     marginBottom: spacing.md,
+  },
+  timelineEntryPressed: {
+    opacity: 0.7,
   },
   timelineLeft: {
     width: 80,
