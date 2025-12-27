@@ -20,6 +20,13 @@ export function DatabaseProvider({ children }: DatabaseProviderProps) {
 }
 
 async function migrateDbIfNeeded(db: SQLiteDatabase) {
+  // One-time fixes (run every time, before version check)
+  try {
+    await db.runAsync(`UPDATE supplements SET name = 'NAC' WHERE name = 'Vitamin D'`);
+  } catch (e) {
+    // Ignore if table doesn't exist yet
+  }
+
   // Get current database version
   const result = await db.getFirstAsync<{ user_version: number }>(
     'PRAGMA user_version'
@@ -44,9 +51,6 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
 
     console.log('Database initialized with seed data');
   }
-
-  // Future migrations go here:
-  // if (currentVersion === 1) { ... }
 
   // Update version
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

@@ -85,7 +85,7 @@ export const DEFAULT_SUPPLEMENTS = [
   { name: 'Creatine', target: 1, dosage: '5g', sort_order: 0 },
   { name: 'Magnesium', target: 1, dosage: null, sort_order: 1 },
   { name: 'Omega-3', target: 1, dosage: null, sort_order: 2 },
-  { name: 'Vitamin D', target: 1, dosage: null, sort_order: 3 },
+  { name: 'NAC', target: 1, dosage: null, sort_order: 3 },
   { name: 'Water', target: 4, dosage: 'liters', sort_order: 4 },
 ];
 
