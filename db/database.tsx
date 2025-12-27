@@ -45,10 +45,8 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
     console.log('Database initialized with seed data');
   }
 
-  // Future migrations would go here:
-  // if (currentVersion === 1) {
-  //   // v1 -> v2 migration
-  // }
+  // Future migrations go here:
+  // if (currentVersion === 1) { ... }
 
   // Update version
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

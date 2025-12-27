@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Plus, Check } from 'lucide-react-native';
+import { ChevronLeft, Plus, Check, PenLine } from 'lucide-react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFoods, useMealEntries, type Food } from '@/db';
@@ -19,13 +19,12 @@ export default function MealDetailScreen() {
 
   // Database hooks
   const { getFoods } = useFoods();
-  const { createEntry, addFoodToEntry, addCustomItemToEntry } = useMealEntries();
+  const { createEntry, addFoodToEntry } = useMealEntries();
 
   // State
   const [foods, setFoods] = useState<Food[]>([]);
   const [currentEntryId, setCurrentEntryId] = useState<number | null>(null);
   const [addedFoodIds, setAddedFoodIds] = useState<Set<number>>(new Set());
-  const [customFood, setCustomFood] = useState('');
 
   // Load foods from database
   useEffect(() => {
@@ -60,45 +59,14 @@ export default function MealDetailScreen() {
     }
   }, [currentEntryId, meal, createEntry, addFoodToEntry]);
 
-  // Handle adding custom food
-  const handleAddCustomFood = useCallback(async () => {
-    const input = customFood.trim();
-    if (!input) return;
-
-    // Parse input: "Food name 25g" or "Food name 25g 200cal"
-    // Simple regex to extract protein and optional calories
-    const proteinMatch = input.match(/(\d+)\s*g/i);
-    const caloriesMatch = input.match(/(\d+)\s*cal/i);
-
-    const protein = proteinMatch ? parseInt(proteinMatch[1], 10) : 0;
-    const calories = caloriesMatch ? parseInt(caloriesMatch[1], 10) : 0;
-
-    // Remove macros from name
-    let name = input
-      .replace(/\d+\s*g/i, '')
-      .replace(/\d+\s*cal/i, '')
-      .trim();
-
-    if (!name) {
-      Alert.alert('Invalid input', 'Please enter a food name');
-      return;
+  // Navigate to custom food screen
+  const handleAddCustomFood = useCallback(() => {
+    const params: { mealType: string; entryId?: string } = { mealType: meal };
+    if (currentEntryId) {
+      params.entryId = currentEntryId.toString();
     }
-
-    try {
-      let entryId = currentEntryId;
-
-      if (!entryId) {
-        entryId = await createEntry(meal);
-        setCurrentEntryId(entryId);
-      }
-
-      await addCustomItemToEntry(entryId, name, protein, calories);
-      setCustomFood('');
-    } catch (error) {
-      console.error('Failed to add custom food:', error);
-      Alert.alert('Error', 'Failed to add custom food');
-    }
-  }, [customFood, currentEntryId, meal, createEntry, addCustomItemToEntry]);
+    router.push({ pathname: '/nutrition/custom-food', params });
+  }, [meal, currentEntryId, router]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -122,29 +90,14 @@ export default function MealDetailScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Add Custom Food Input */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Custom food... (e.g., Steak 40g 300cal)"
-            placeholderTextColor={colors.text.dim}
-            value={customFood}
-            onChangeText={setCustomFood}
-            onSubmitEditing={handleAddCustomFood}
-            returnKeyType="done"
-          />
-          <Pressable
-            style={({ pressed }) => [
-              styles.addButton,
-              pressed && styles.addButtonPressed,
-              !customFood.trim() && styles.addButtonDisabled
-            ]}
-            onPress={handleAddCustomFood}
-            disabled={!customFood.trim()}
-          >
-            <Plus color={colors.text.primary} size={20} />
-          </Pressable>
-        </View>
+        {/* Add Custom Food Button */}
+        <Pressable
+          style={({ pressed }) => [styles.customFoodButton, pressed && styles.customFoodButtonPressed]}
+          onPress={handleAddCustomFood}
+        >
+          <PenLine color={colors.text.secondary} size={18} />
+          <Text style={styles.customFoodButtonText}>Add custom food...</Text>
+        </Pressable>
 
         {/* Quick Add Foods */}
         <Text style={styles.sectionLabel}>QUICK ADD</Text>
@@ -234,32 +187,21 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.md,
   },
-  inputContainer: {
+  customFoodButton: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  input: {
-    flex: 1,
     backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.md,
     padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  customFoodButtonPressed: {
+    opacity: 0.7,
+  },
+  customFoodButtonText: {
     fontSize: fontSize.md,
-    color: colors.text.primary,
-  },
-  addButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: colors.accent.green,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonPressed: {
-    opacity: 0.8,
-  },
-  addButtonDisabled: {
-    backgroundColor: colors.background.tertiary,
+    color: colors.text.muted,
   },
   sectionLabel: {
     fontSize: fontSize.xs,

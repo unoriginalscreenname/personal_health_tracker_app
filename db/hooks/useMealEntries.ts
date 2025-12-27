@@ -108,7 +108,8 @@ export function useMealEntries() {
     name: string,
     protein: number,
     calories: number,
-    quantity: number = 1
+    quantity: number = 1,
+    _description: string | null = null // TODO: add back once DB schema is stable
   ): Promise<number> => {
     const result = await db.runAsync(
       `INSERT INTO meal_entry_items

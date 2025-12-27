@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Plus, Trash2, X } from 'lucide-react-native';
-import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { ChevronLeft, Plus, Trash2, X, PenLine } from 'lucide-react-native';
+import { useState, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFoods, useMealEntries, type Food, type MealEntry } from '@/db';
 
@@ -23,13 +24,12 @@ export default function EntryDetailScreen() {
 
   // Database hooks
   const { getFoods } = useFoods();
-  const { getEntry, addFoodToEntry, addCustomItemToEntry, removeItem, deleteEntry } = useMealEntries();
+  const { getEntry, addFoodToEntry, removeItem, deleteEntry } = useMealEntries();
 
   // State
   const [entry, setEntry] = useState<MealEntry | null>(null);
   const [foods, setFoods] = useState<Food[]>([]);
   const [showAddFood, setShowAddFood] = useState(false);
-  const [customFood, setCustomFood] = useState('');
 
   // Load entry and foods
   const loadData = useCallback(async () => {
@@ -45,9 +45,12 @@ export default function EntryDetailScreen() {
     }
   }, [entryId, getEntry, getFoods]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Reload data when screen comes into focus (e.g., after adding custom food)
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   // Handle adding a food from the quick add list
   const handleAddFood = useCallback(async (food: Food) => {
@@ -61,38 +64,13 @@ export default function EntryDetailScreen() {
     }
   }, [entryId, addFoodToEntry, loadData]);
 
-  // Handle adding custom food
-  const handleAddCustomFood = useCallback(async () => {
-    const input = customFood.trim();
-    if (!input) return;
-
-    // Parse input: "Food name 25g" or "Food name 25g 200cal"
-    const proteinMatch = input.match(/(\d+)\s*g/i);
-    const caloriesMatch = input.match(/(\d+)\s*cal/i);
-
-    const protein = proteinMatch ? parseInt(proteinMatch[1], 10) : 0;
-    const calories = caloriesMatch ? parseInt(caloriesMatch[1], 10) : 0;
-
-    let name = input
-      .replace(/\d+\s*g/i, '')
-      .replace(/\d+\s*cal/i, '')
-      .trim();
-
-    if (!name) {
-      Alert.alert('Invalid input', 'Please enter a food name');
-      return;
-    }
-
-    try {
-      await addCustomItemToEntry(entryId, name, protein, calories);
-      setCustomFood('');
-      await loadData();
-      setShowAddFood(false);
-    } catch (error) {
-      console.error('Failed to add custom food:', error);
-      Alert.alert('Error', 'Failed to add custom food');
-    }
-  }, [customFood, entryId, addCustomItemToEntry, loadData]);
+  // Navigate to custom food screen
+  const handleAddCustomFood = useCallback(() => {
+    router.push({
+      pathname: '/nutrition/custom-food',
+      params: { entryId: entryId.toString() }
+    });
+  }, [entryId, router]);
 
   // Handle removing an item
   const handleRemoveItem = useCallback(async (itemId: number, itemName: string) => {
@@ -230,31 +208,17 @@ export default function EntryDetailScreen() {
               </Pressable>
             </View>
 
-            {/* Custom Input */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Custom... (e.g., Steak 40g 300cal)"
-                placeholderTextColor={colors.text.dim}
-                value={customFood}
-                onChangeText={setCustomFood}
-                onSubmitEditing={handleAddCustomFood}
-                returnKeyType="done"
-              />
-              <Pressable
-                style={({ pressed }) => [
-                  styles.addButton,
-                  pressed && styles.addButtonPressed,
-                  !customFood.trim() && styles.addButtonDisabled
-                ]}
-                onPress={handleAddCustomFood}
-                disabled={!customFood.trim()}
-              >
-                <Plus color={colors.text.primary} size={20} />
-              </Pressable>
-            </View>
+            {/* Custom Food Button */}
+            <Pressable
+              style={({ pressed }) => [styles.customFoodButton, pressed && styles.customFoodButtonPressed]}
+              onPress={handleAddCustomFood}
+            >
+              <PenLine color={colors.text.secondary} size={16} />
+              <Text style={styles.customFoodButtonText}>Add custom food...</Text>
+            </Pressable>
 
             {/* Quick Add Foods */}
+            <Text style={styles.quickAddLabel}>QUICK ADD</Text>
             <View style={styles.quickAddList}>
               {foods.map((food) => (
                 <Pressable
@@ -410,32 +374,28 @@ const styles = StyleSheet.create({
     color: colors.text.dim,
     letterSpacing: 1.5,
   },
-  inputContainer: {
+  customFoodButton: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  input: {
-    flex: 1,
     backgroundColor: colors.background.tertiary,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    fontSize: fontSize.md,
-    color: colors.text.primary,
+    marginBottom: spacing.md,
   },
-  addButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: colors.accent.green,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+  customFoodButtonPressed: {
+    opacity: 0.7,
   },
-  addButtonPressed: {
-    opacity: 0.8,
+  customFoodButtonText: {
+    fontSize: fontSize.sm,
+    color: colors.text.muted,
   },
-  addButtonDisabled: {
-    backgroundColor: colors.background.tertiary,
+  quickAddLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: '600',
+    color: colors.text.dim,
+    letterSpacing: 1.5,
+    marginBottom: spacing.sm,
   },
   quickAddList: {
     flexDirection: 'row',
