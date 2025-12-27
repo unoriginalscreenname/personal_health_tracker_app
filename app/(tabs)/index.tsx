@@ -13,15 +13,15 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
+import { useFastingState } from '@/hooks/useFastingState';
 
 export default function CommandCenterScreen() {
+  // Fasting state from hook
+  const { isFasting, hours, minutes, progress } = useFastingState();
+
   // Mock data - will be replaced with real state
   const currentDay = 7;
   const streakDays = 7;
-  const isFasting = true;
-  const fastingHours = 14;
-  const fastingMinutes = 32;
-  const targetHours = 18;
   const isSitting = false;
   const sittingMinutes = 23;
 
@@ -31,8 +31,6 @@ export default function CommandCenterScreen() {
     { name: 'Vitamin D', taken: false },
     { name: 'Magnesium', taken: false },
   ];
-
-  const fastingProgress = (fastingHours * 60 + fastingMinutes) / (targetHours * 60);
 
   // Workout data
   const workedOutToday = false;
@@ -59,7 +57,11 @@ export default function CommandCenterScreen() {
         </View>
 
         {/* Fasting Status */}
-        <View style={[styles.card, styles.fastingCard]}>
+        <View style={[
+          styles.card,
+          styles.fastingCard,
+          !isFasting && styles.eatingCard
+        ]}>
           <View style={styles.fastingRow}>
             <Timer
               color={isFasting ? colors.fasting.primary : colors.eating.primary}
@@ -67,9 +69,13 @@ export default function CommandCenterScreen() {
             />
             <View style={styles.timerDisplay}>
               <Text style={[styles.timerText, { color: isFasting ? colors.fasting.primary : colors.eating.primary }]}>
-                {String(fastingHours).padStart(2, '0')}:{String(fastingMinutes).padStart(2, '0')}
+                {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}
               </Text>
-              <Text style={styles.timerTarget}>/ {targetHours}:00</Text>
+              {isFasting ? (
+                <Text style={styles.timerTarget}>/ 18:00</Text>
+              ) : (
+                <Text style={[styles.timerTarget, styles.timerRemaining]}>remaining</Text>
+              )}
             </View>
           </View>
           <View style={styles.progressTrack}>
@@ -77,7 +83,7 @@ export default function CommandCenterScreen() {
               style={[
                 styles.progressFill,
                 {
-                  width: `${Math.min(fastingProgress * 100, 100)}%`,
+                  width: `${Math.min(progress * 100, 100)}%`,
                   backgroundColor: isFasting ? colors.fasting.primary : colors.eating.primary
                 }
               ]}
@@ -286,6 +292,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.fasting.primary + '30',
   },
+  eatingCard: {
+    borderColor: colors.eating.primary + '30',
+  },
   fastingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -306,6 +315,12 @@ const styles = StyleSheet.create({
     fontWeight: '200',
     color: colors.text.dim,
     marginLeft: spacing.xs,
+  },
+  timerRemaining: {
+    fontSize: fontSize.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginLeft: spacing.sm,
   },
   progressTrack: {
     height: 6,
