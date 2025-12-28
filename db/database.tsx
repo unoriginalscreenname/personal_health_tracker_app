@@ -3,6 +3,7 @@ import { type ReactNode } from 'react';
 import {
   DATABASE_VERSION,
   CREATE_TABLES_SQL,
+  ADD_DAILY_STATS_TABLE_SQL,
   seedDefaultFoods,
   seedDefaultSupplements,
 } from './schema';
@@ -50,6 +51,13 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await seedDefaultSupplements(db);
 
     console.log('Database initialized with seed data');
+  }
+
+  // Version 1 -> 2: Add daily_stats table
+  if (currentVersion === 1) {
+    console.log('Migrating database to v2 (adding daily_stats)...');
+    await db.execAsync(ADD_DAILY_STATS_TABLE_SQL);
+    console.log('Migration to v2 complete');
   }
 
   // Update version

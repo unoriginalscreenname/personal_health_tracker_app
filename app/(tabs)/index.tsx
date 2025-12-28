@@ -17,7 +17,7 @@ import {
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFastingState } from '@/hooks/useFastingState';
-import { useSupplements, useMealEntries, type SupplementWithValue } from '@/db';
+import { useSupplements, useMealEntries, useDailyStats, type SupplementWithValue } from '@/db';
 
 // WaterDot component for individual dot clicks
 const WaterDot = ({
@@ -67,14 +67,15 @@ export default function CommandCenterScreen() {
   // Database hooks
   const { getSupplementsForDate, toggleSupplement, setSupplementValue, getToday } = useSupplements();
   const { getTotalsForDate } = useMealEntries();
+  const { initializeDay, getStreak, getStatsForRange } = useDailyStats();
 
   // State
   const [supplements, setSupplements] = useState<SupplementWithValue[]>([]);
   const [totals, setTotals] = useState({ protein: 0, calories: 0 });
+  const [streakDays, setStreakDays] = useState(0);
+  const [currentDay, setCurrentDay] = useState(1);
 
   // Mock data - will be replaced with real state
-  const currentDay = 7;
-  const streakDays = 7;
   const isSitting = false;
   const sittingMinutes = 23;
 
@@ -87,16 +88,30 @@ export default function CommandCenterScreen() {
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
-        const today = getToday();
-        const [supps, tots] = await Promise.all([
-          getSupplementsForDate(today),
-          getTotalsForDate(today),
-        ]);
-        setSupplements(supps);
-        setTotals(tots);
+        try {
+          // Initialize day (handles day rollover, backfilling gaps, etc.)
+          await initializeDay();
+
+          const today = getToday();
+          const [supps, tots, supplementStreak] = await Promise.all([
+            getSupplementsForDate(today),
+            getTotalsForDate(today),
+            getStreak('supplements_complete'),
+          ]);
+          setSupplements(supps);
+          setTotals(tots);
+          setStreakDays(supplementStreak);
+
+          // Calculate current day (days since first entry in daily_stats)
+          // Get all stats from a long time ago to today
+          const stats = await getStatsForRange('2020-01-01', today);
+          setCurrentDay(Math.max(1, stats.length));
+        } catch (error) {
+          console.error('Error loading data:', error);
+        }
       };
       loadData();
-    }, [getSupplementsForDate, getTotalsForDate, getToday])
+    }, [initializeDay, getSupplementsForDate, getTotalsForDate, getToday, getStreak, getStatsForRange])
   );
 
   // Handle supplement tap (for pills)
@@ -132,6 +147,15 @@ export default function CommandCenterScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Today Label */}
+        <Text style={styles.todayLabel}>
+          {new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric'
+          })}
+        </Text>
+
         {/* Streak Banner */}
         <View style={styles.streakBanner}>
           <Flame color={colors.accent.orange} size={36} fill={colors.accent.orange} />
@@ -322,6 +346,15 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
+  },
+
+  // Today Label
+  todayLabel: {
+    fontSize: fontSize.sm,
+    color: colors.text.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
   },
 
   // Streak Banner

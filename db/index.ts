@@ -14,3 +14,7 @@ export {
   type Supplement,
   type SupplementWithValue,
 } from './hooks/useSupplements';
+export {
+  useDailyStats,
+  type DailyStats,
+} from './hooks/useDailyStats';

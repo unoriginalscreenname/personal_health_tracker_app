@@ -1,6 +1,7 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback } from 'react';
 import type { Food } from './useFoods';
+import { useDailyStats } from './useDailyStats';
 
 export interface MealEntryItem {
   id: number;
@@ -28,6 +29,7 @@ export interface DayTotals {
 
 export function useMealEntries() {
   const db = useSQLiteContext();
+  const { updateTodayStats } = useDailyStats();
 
   // Get all entries for a specific date with their items
   const getEntriesForDate = useCallback(async (date: string): Promise<MealEntry[]> => {
@@ -83,8 +85,9 @@ export function useMealEntries() {
       [date, loggedAt, mealType ?? null]
     );
 
+    await updateTodayStats();
     return result.lastInsertRowId;
-  }, [db]);
+  }, [db, updateTodayStats]);
 
   // Add an item to an entry (from foods table)
   const addFoodToEntry = useCallback(async (
@@ -99,8 +102,9 @@ export function useMealEntries() {
       [entryId, food.id, food.name, food.protein, food.calories, quantity]
     );
 
+    await updateTodayStats();
     return result.lastInsertRowId;
-  }, [db]);
+  }, [db, updateTodayStats]);
 
   // Add a custom item to an entry (not from foods table)
   const addCustomItemToEntry = useCallback(async (
@@ -118,8 +122,9 @@ export function useMealEntries() {
       [entryId, name, protein, calories, quantity]
     );
 
+    await updateTodayStats();
     return result.lastInsertRowId;
-  }, [db]);
+  }, [db, updateTodayStats]);
 
   // Update item quantity
   const updateItemQuantity = useCallback(async (
@@ -138,7 +143,8 @@ export function useMealEntries() {
       'DELETE FROM meal_entry_items WHERE id = ?',
       [itemId]
     );
-  }, [db]);
+    await updateTodayStats();
+  }, [db, updateTodayStats]);
 
   // Delete an entire entry and its items (cascade)
   const deleteEntry = useCallback(async (entryId: number): Promise<void> => {
@@ -146,7 +152,8 @@ export function useMealEntries() {
       'DELETE FROM meal_entries WHERE id = ?',
       [entryId]
     );
-  }, [db]);
+    await updateTodayStats();
+  }, [db, updateTodayStats]);
 
   // Update entry logged_at time
   const updateEntryTime = useCallback(async (entryId: number, newTime: Date): Promise<void> => {
@@ -154,7 +161,8 @@ export function useMealEntries() {
       'UPDATE meal_entries SET logged_at = ? WHERE id = ?',
       [newTime.toISOString(), entryId]
     );
-  }, [db]);
+    await updateTodayStats();
+  }, [db, updateTodayStats]);
 
   // Get entry by ID
   const getEntry = useCallback(async (entryId: number): Promise<MealEntry | null> => {

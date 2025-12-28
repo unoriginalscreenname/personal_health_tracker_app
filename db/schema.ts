@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 // Schema version - increment when making changes
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 // SQL statements for creating tables
 export const CREATE_TABLES_SQL = `
@@ -66,6 +66,30 @@ export const CREATE_TABLES_SQL = `
     FOREIGN KEY (supplement_id) REFERENCES supplements(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_supplement_logs_date ON supplement_logs(date);
+
+  -- Daily stats: track daily outcomes for streak calculations
+  CREATE TABLE IF NOT EXISTS daily_stats (
+    date TEXT PRIMARY KEY,
+    fasting_compliant INTEGER NOT NULL DEFAULT 0,
+    supplements_complete INTEGER NOT NULL DEFAULT 0,
+    finalized INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_daily_stats_date ON daily_stats(date);
+`;
+
+// SQL for adding daily_stats table (v1 -> v2 migration)
+export const ADD_DAILY_STATS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS daily_stats (
+    date TEXT PRIMARY KEY,
+    fasting_compliant INTEGER NOT NULL DEFAULT 0,
+    supplements_complete INTEGER NOT NULL DEFAULT 0,
+    finalized INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_daily_stats_date ON daily_stats(date);
 `;
 
 // Default foods to seed

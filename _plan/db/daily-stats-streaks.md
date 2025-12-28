@@ -56,20 +56,28 @@ When the app opens (or Command Center focuses), check if `daily_stats` has a row
 
 ```
 1. Get today's date (YYYY-MM-DD)
-2. Get the most recent row from daily_stats (lastDate)
-3. If lastDate exists and is before yesterday:
-   - For each missing day between lastDate+1 and yesterday:
-     - Insert row with fasting=0, supplements=0, finalized=1
-     - (These are failures - no data means not compliant)
-4. Finalize yesterday (if yesterday's row exists and not finalized):
-   - Calculate fasting compliance from meal_entries
-   - Calculate supplements completion from supplement_logs
-   - Update yesterday's row with calculated values
-   - Set finalized=1
-5. Create today's row:
-   - Insert with fasting=0, supplements=0, finalized=0
-   - (Will be updated throughout the day as user logs data)
+2. Check if today's row exists → if yes, return (already initialized)
+3. Get the most recent row from daily_stats (lastRow)
+4. If NO lastRow exists (FIRST DAY EVER):
+   - Just create today's row and return
+   - Don't try to backfill or finalize anything
+5. If lastRow exists:
+   a. If lastRow is not finalized, finalize it (it was "today" from previous session)
+   b. For each missing day between lastRow+1 and yesterday:
+      - If it's yesterday: calculate actual stats and finalize
+      - If it's an older gap day: insert as failure (0, 0, finalized=1)
+   c. Create today's row (finalized=0)
 ```
+
+### Edge Cases
+
+**First day ever**: No previous data exists. Just create today's row. Don't try to finalize "yesterday" because there's no data and no context.
+
+**App opened yesterday, opened again today**: Normal flow. Finalize yesterday's row with calculated stats, create today's row.
+
+**App not opened for 3 days**: Last row is 3 days ago. Backfill the gap days as failures, create today's row.
+
+**Opened at 11:59pm, then again at 12:01am**: The 11:59pm session created a row for that day. At 12:01am (new day), we finalize the previous row and create a new one.
 
 ### Example Timeline
 
@@ -168,54 +176,68 @@ export function useDailyStats() {
   };
 
   // Initialize a new day - call this on app open / screen focus
+  // Handles: first day ever, normal next day, gaps after days of not using app
   const initializeDay = async (): Promise<void> => {
     const today = getToday();
     const yesterday = getYesterday();
 
     // Check if today already initialized
     const todayExists = await hasTodayRow();
-    if (todayExists) return; // Already done
+    if (todayExists) return; // Already done for today
 
     // Get most recent row
     const lastRow = await db.getFirstAsync<{ date: string; finalized: number }>(
       'SELECT date, finalized FROM daily_stats ORDER BY date DESC LIMIT 1'
     );
 
-    // Backfill missing days (if any gap between lastRow and yesterday)
-    if (lastRow) {
-      const lastDate = new Date(lastRow.date);
-      const yesterdayDate = new Date(yesterday);
+    if (!lastRow) {
+      // FIRST DAY EVER - no previous data exists
+      // Just create today's row and we're done
+      await db.runAsync(`
+        INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
+        VALUES (?, 0, 0, 0)
+      `, [today]);
+      return;
+    }
 
-      // Move to day after last row
-      lastDate.setDate(lastDate.getDate() + 1);
+    // Previous rows exist - handle rollover
+    const lastDate = new Date(lastRow.date);
+    const yesterdayDate = new Date(yesterday);
 
-      while (lastDate <= yesterdayDate) {
-        const dateStr = lastDate.toISOString().split('T')[0];
+    // If last row is not finalized, it was "today" from a previous session
+    // We need to finalize it now
+    if (lastRow.finalized === 0) {
+      await finalizeDate(lastRow.date);
+    }
 
-        // Check if this is yesterday (might have data) or an older gap day (no data)
+    // Check for gaps - days between lastRow and yesterday that need backfilling
+    const dayAfterLast = new Date(lastRow.date);
+    dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+
+    while (dayAfterLast <= yesterdayDate) {
+      const dateStr = dayAfterLast.toISOString().split('T')[0];
+
+      // Skip if this date already has a row (shouldn't happen, but safety check)
+      const exists = await hasRowForDate(dateStr);
+      if (!exists) {
         if (dateStr === yesterday) {
-          // Finalize yesterday with actual calculated stats
+          // Yesterday might have data - calculate actual stats
           await finalizeDate(yesterday);
         } else {
-          // Gap day - insert as failure
+          // Gap day - no data, mark as failure
           await db.runAsync(`
-            INSERT OR IGNORE INTO daily_stats
-            (date, fasting_compliant, supplements_complete, finalized)
+            INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
             VALUES (?, 0, 0, 1)
           `, [dateStr]);
         }
-
-        lastDate.setDate(lastDate.getDate() + 1);
       }
-    } else if (yesterday) {
-      // No previous rows exist, but we should still try to finalize yesterday
-      await finalizeDate(yesterday);
+
+      dayAfterLast.setDate(dayAfterLast.getDate() + 1);
     }
 
-    // Create today's row
+    // Finally, create today's row
     await db.runAsync(`
-      INSERT OR IGNORE INTO daily_stats
-      (date, fasting_compliant, supplements_complete, finalized)
+      INSERT OR IGNORE INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
       VALUES (?, 0, 0, 0)
     `, [today]);
   };
@@ -413,12 +435,12 @@ Update criteria:
 
 ## Implementation Order
 
-1. Add `daily_stats` table to schema.ts (with `finalized` column)
-2. Create `useDailyStats` hook with:
-   - `initializeDay()` - day rollover logic
-   - `updateTodayStats()` - recalculate in-progress stats
-   - `getStreak()` - count consecutive finalized successes
-3. Call `initializeDay()` from Command Center's `useFocusEffect`
-4. Call `updateTodayStats()` from meal/supplement hooks after changes
-5. Add "Today is X" label to Command Center
-6. (Later) Use stats for calendar view (green/red dots)
+1. ~~Add `daily_stats` table to schema.ts (with `finalized` column)~~ ✓
+2. ~~Add migration v1->v2 in database.tsx~~ ✓
+3. ~~Create `useDailyStats` hook~~ ✓
+4. ~~Export from db/index.ts~~ ✓
+5. ~~Call `initializeDay()` from Command Center's `useFocusEffect`~~ ✓
+6. ~~Add "Today is X" label to Command Center~~ ✓
+7. Call `updateTodayStats()` from meal/supplement hooks after changes (TODO)
+8. (Later) Use stats for calendar view (green/red dots)
+9. (Later) Display actual streak values from getStreak()

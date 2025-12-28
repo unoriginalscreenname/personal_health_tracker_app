@@ -1,5 +1,6 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback } from 'react';
+import { useDailyStats } from './useDailyStats';
 
 export interface Supplement {
   id: number;
@@ -17,6 +18,7 @@ export interface SupplementWithValue extends Supplement {
 
 export function useSupplements() {
   const db = useSQLiteContext();
+  const { updateTodayStats } = useDailyStats();
 
   // Get today's date string
   const getToday = useCallback((): string => {
@@ -47,7 +49,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = CASE WHEN value = 0 THEN 1 ELSE 0 END
     `, [supplementId, date]);
-  }, [db]);
+    await updateTodayStats();
+  }, [db, updateTodayStats]);
 
   // Increment a supplement (for target>1 items like water)
   const incrementSupplement = useCallback(async (
@@ -61,7 +64,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = MIN(value + 1, ?)
     `, [supplementId, date, target]);
-  }, [db]);
+    await updateTodayStats();
+  }, [db, updateTodayStats]);
 
   // Decrement a supplement (for target>1 items)
   const decrementSupplement = useCallback(async (
@@ -74,7 +78,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = MAX(value - 1, 0)
     `, [supplementId, date]);
-  }, [db]);
+    await updateTodayStats();
+  }, [db, updateTodayStats]);
 
   // Set a specific value for a supplement
   const setSupplementValue = useCallback(async (
@@ -88,7 +93,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = ?
     `, [supplementId, date, value, value]);
-  }, [db]);
+    await updateTodayStats();
+  }, [db, updateTodayStats]);
 
   // Check if all supplements are at target for a date
   const isDateComplete = useCallback(async (date: string): Promise<boolean> => {

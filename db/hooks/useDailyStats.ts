@@ -1,0 +1,232 @@
+import { useSQLiteContext } from 'expo-sqlite';
+import { useCallback } from 'react';
+
+export interface DailyStats {
+  date: string;
+  fasting_compliant: number;
+  supplements_complete: number;
+  finalized: number;
+}
+
+export function useDailyStats() {
+  const db = useSQLiteContext();
+
+  // Get today's date string (YYYY-MM-DD)
+  const getToday = useCallback((): string => {
+    return new Date().toISOString().split('T')[0];
+  }, []);
+
+  // Get yesterday's date string
+  const getYesterday = useCallback((): string => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  // Check if a row exists for a given date
+  const hasRowForDate = useCallback(async (date: string): Promise<boolean> => {
+    const row = await db.getFirstAsync(
+      'SELECT 1 FROM daily_stats WHERE date = ?',
+      [date]
+    );
+    return !!row;
+  }, [db]);
+
+  // Calculate fasting compliance for a date
+  // Rule: All meals must be between 12:00 and 18:00
+  // No meals = not compliant (can't verify)
+  const calculateFastingCompliance = useCallback(async (date: string): Promise<boolean> => {
+    const result = await db.getFirstAsync<{ compliant: number }>(`
+      SELECT CASE
+        WHEN COUNT(*) = 0 THEN 0
+        WHEN MIN(CAST(strftime('%H', logged_at) AS INTEGER)) >= 12
+         AND MAX(CAST(strftime('%H', logged_at) AS INTEGER)) < 18 THEN 1
+        ELSE 0
+      END as compliant
+      FROM meal_entries
+      WHERE date = ?
+    `, [date]);
+    return result?.compliant === 1;
+  }, [db]);
+
+  // Calculate supplements completion for a date
+  // Rule: All supplements at target, except water only needs 2/4
+  const calculateSupplementsComplete = useCallback(async (date: string): Promise<boolean> => {
+    const result = await db.getFirstAsync<{ complete: number }>(`
+      SELECT CASE
+        WHEN COUNT(*) = 0 THEN 0
+        WHEN SUM(CASE
+          WHEN s.name = 'Water' THEN (CASE WHEN COALESCE(sl.value, 0) >= 2 THEN 1 ELSE 0 END)
+          ELSE (CASE WHEN COALESCE(sl.value, 0) >= s.target THEN 1 ELSE 0 END)
+        END) = COUNT(*) THEN 1
+        ELSE 0
+      END as complete
+      FROM supplements s
+      LEFT JOIN supplement_logs sl ON s.id = sl.supplement_id AND sl.date = ?
+      WHERE s.is_archived = 0
+    `, [date]);
+    return result?.complete === 1;
+  }, [db]);
+
+  // Calculate and finalize stats for a specific date (marks as finalized=1)
+  const finalizeDate = useCallback(async (date: string): Promise<void> => {
+    const fasting = await calculateFastingCompliance(date);
+    const supplements = await calculateSupplementsComplete(date);
+
+    await db.runAsync(`
+      INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized, updated_at)
+      VALUES (?, ?, ?, 1, datetime('now'))
+      ON CONFLICT(date) DO UPDATE SET
+        fasting_compliant = excluded.fasting_compliant,
+        supplements_complete = excluded.supplements_complete,
+        finalized = 1,
+        updated_at = datetime('now')
+    `, [date, fasting ? 1 : 0, supplements ? 1 : 0]);
+  }, [db, calculateFastingCompliance, calculateSupplementsComplete]);
+
+  // Initialize a new day - call this on app open / screen focus
+  // Handles: first day ever, normal next day, gaps after days of not using app
+  const initializeDay = useCallback(async (): Promise<void> => {
+    const today = getToday();
+    const yesterday = getYesterday();
+
+    // Check if today already initialized
+    const todayExists = await hasRowForDate(today);
+    if (todayExists) return; // Already done for today
+
+    // Get most recent row
+    const lastRow = await db.getFirstAsync<{ date: string; finalized: number }>(
+      'SELECT date, finalized FROM daily_stats ORDER BY date DESC LIMIT 1'
+    );
+
+    if (!lastRow) {
+      // FIRST DAY EVER - no previous data exists
+      // Just create today's row and we're done
+      await db.runAsync(`
+        INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
+        VALUES (?, 0, 0, 0)
+      `, [today]);
+      return;
+    }
+
+    // Previous rows exist - handle rollover
+    const lastDate = new Date(lastRow.date);
+    const yesterdayDate = new Date(yesterday);
+
+    // If last row is not finalized, it was "today" from a previous session
+    // We need to finalize it now
+    if (lastRow.finalized === 0) {
+      await finalizeDate(lastRow.date);
+    }
+
+    // Check for gaps - days between lastRow and yesterday that need backfilling
+    const dayAfterLast = new Date(lastRow.date);
+    dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+
+    while (dayAfterLast <= yesterdayDate) {
+      const dateStr = dayAfterLast.toISOString().split('T')[0];
+
+      // Skip if this date already has a row (shouldn't happen, but safety check)
+      const exists = await hasRowForDate(dateStr);
+      if (!exists) {
+        if (dateStr === yesterday) {
+          // Yesterday might have data (user logged stuff but didn't open app today until now)
+          // Calculate actual stats
+          await finalizeDate(yesterday);
+        } else {
+          // Gap day - no data, mark as failure
+          await db.runAsync(`
+            INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
+            VALUES (?, 0, 0, 1)
+          `, [dateStr]);
+        }
+      }
+
+      dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+    }
+
+    // Finally, create today's row
+    await db.runAsync(`
+      INSERT OR IGNORE INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
+      VALUES (?, 0, 0, 0)
+    `, [today]);
+  }, [db, getToday, getYesterday, hasRowForDate, finalizeDate]);
+
+  // Update today's stats (in-progress, not finalized)
+  // Call this after user logs meals or supplements
+  const updateTodayStats = useCallback(async (): Promise<void> => {
+    const today = getToday();
+    const fasting = await calculateFastingCompliance(today);
+    const supplements = await calculateSupplementsComplete(today);
+
+    await db.runAsync(`
+      UPDATE daily_stats
+      SET fasting_compliant = ?, supplements_complete = ?, updated_at = datetime('now')
+      WHERE date = ? AND finalized = 0
+    `, [fasting ? 1 : 0, supplements ? 1 : 0, today]);
+  }, [db, getToday, calculateFastingCompliance, calculateSupplementsComplete]);
+
+  // Get streak count for a metric (only counts finalized days - yesterday and before)
+  const getStreak = useCallback(async (
+    metric: 'fasting_compliant' | 'supplements_complete'
+  ): Promise<number> => {
+    const yesterday = getYesterday();
+
+    // Only look at finalized days (yesterday and before)
+    const rows = await db.getAllAsync<{ date: string; value: number }>(`
+      SELECT date, ${metric} as value
+      FROM daily_stats
+      WHERE finalized = 1 AND date <= ?
+      ORDER BY date DESC
+    `, [yesterday]);
+
+    let streak = 0;
+    const startDate = new Date(yesterday);
+
+    for (const row of rows) {
+      const expectedDate = new Date(startDate);
+      expectedDate.setDate(startDate.getDate() - streak);
+      const expected = expectedDate.toISOString().split('T')[0];
+
+      if (row.date === expected && row.value === 1) {
+        streak++;
+      } else {
+        break; // streak broken (either failure or gap)
+      }
+    }
+
+    return streak;
+  }, [db, getYesterday]);
+
+  // Get stats for calendar display
+  const getStatsForRange = useCallback(async (
+    startDate: string,
+    endDate: string
+  ): Promise<DailyStats[]> => {
+    return db.getAllAsync(`
+      SELECT date, fasting_compliant, supplements_complete, finalized
+      FROM daily_stats
+      WHERE date BETWEEN ? AND ?
+      ORDER BY date
+    `, [startDate, endDate]);
+  }, [db]);
+
+  // Get today's current (in-progress) stats
+  const getTodayStats = useCallback(async (): Promise<DailyStats | null> => {
+    const today = getToday();
+    return db.getFirstAsync(`
+      SELECT date, fasting_compliant, supplements_complete, finalized
+      FROM daily_stats
+      WHERE date = ?
+    `, [today]);
+  }, [db, getToday]);
+
+  return {
+    getToday,
+    initializeDay,
+    updateTodayStats,
+    getStreak,
+    getStatsForRange,
+    getTodayStats,
+  };
+}
