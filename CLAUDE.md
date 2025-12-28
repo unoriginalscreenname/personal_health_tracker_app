@@ -124,8 +124,18 @@ Reference `/Users/ericmcgregor/Documents/PROJECTS/mobile/design-brief.md` for fu
 - Percentage displays when progress bar shows it
 - Anything that feels like a "wellness app"
 
+## Session Notes
+
+At the end of significant work sessions, create a notes file in `_plan/session/`:
+- **Filename**: `YYYYMMDD_HHMM_notes.md` - use actual current time (verify with `date` command)
+- **Structure**: Summary (1 line), What Was Done (grouped bullets), Commits (with IDs), Notes (gotchas)
+- **Length**: Keep it short and high-level, ~30-50 lines max
+- **Commits**: Always include commit hashes from the session (run `git log --oneline -5`)
+- **Style**: Follow the pattern in existing `_plan/session/` files
+
 ## Key Files
 
-- `prd.md` - Full product requirements
-- `design-brief.md` - UI/UX design principles
-- `react-native-android-setup.md` - Detailed setup/troubleshooting guide
+- `_plan/page-component-structure.md` - Component organization rules (READ THIS)
+- `_plan/design-brief.md` - UI/UX design principles
+- `_plan/prd.md` - Full product requirements
+- `_plan/react-native-android-setup.md` - Detailed setup/troubleshooting guide
