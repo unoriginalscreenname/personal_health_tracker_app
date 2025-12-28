@@ -218,6 +218,47 @@ export function useDailyStats() {
     return streak;
   }, [db, getYesterday]);
 
+  // Get combined streak (both fasting AND supplements must be successful)
+  // Returns { baseStreak, todayComplete } so caller can decide how to display
+  const getCombinedStreak = useCallback(async (): Promise<{ baseStreak: number; todayComplete: boolean }> => {
+    const today = getToday();
+    const yesterday = getYesterday();
+
+    // Get finalized days with both metrics
+    const rows = await db.getAllAsync<{ date: string; fasting: number; supps: number }>(`
+      SELECT date, fasting_compliant as fasting, supplements_complete as supps
+      FROM daily_stats
+      WHERE finalized = 1 AND date <= ?
+      ORDER BY date DESC
+    `, [yesterday]);
+
+    let baseStreak = 0;
+    const startDate = new Date(yesterday);
+
+    for (const row of rows) {
+      const expectedDate = new Date(startDate);
+      expectedDate.setDate(startDate.getDate() - baseStreak);
+      const expected = formatDateLocal(expectedDate);
+
+      if (row.date === expected && row.fasting === 1 && row.supps === 1) {
+        baseStreak++;
+      } else {
+        break; // streak broken
+      }
+    }
+
+    // Check if today would count (both metrics successful)
+    const todayStats = await db.getFirstAsync<{ fasting: number; supps: number }>(`
+      SELECT fasting_compliant as fasting, supplements_complete as supps
+      FROM daily_stats
+      WHERE date = ?
+    `, [today]);
+
+    const todayComplete = todayStats?.fasting === 1 && todayStats?.supps === 1;
+
+    return { baseStreak, todayComplete };
+  }, [db, getToday, getYesterday]);
+
   // Get stats for calendar display
   const getStatsForRange = useCallback(async (
     startDate: string,
@@ -272,6 +313,7 @@ export function useDailyStats() {
     updateStatsForDate,
     updateTodayStats,
     getStreak,
+    getCombinedStreak,
     getStatsForRange,
     getTodayStats,
     hasDataForDate,

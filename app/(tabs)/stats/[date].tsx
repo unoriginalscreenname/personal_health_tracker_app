@@ -189,6 +189,15 @@ export default function DayDetailScreen() {
     }
   }, [pickerDate, currentDate, moveDateData, router]);
 
+  // Go to date - just navigate without moving data
+  const handleGoToDate = useCallback(() => {
+    const newDate = formatDateLocal(pickerDate);
+    setShowDatePicker(false);
+    if (newDate !== currentDate) {
+      router.replace(`/stats/${newDate}`);
+    }
+  }, [pickerDate, currentDate, router]);
+
   // Handle log food - create entry and navigate to it
   const handleLogFood = useCallback(async () => {
     const entryId = await createEntry(undefined, currentDate);
@@ -513,25 +522,43 @@ export default function DayDetailScreen() {
 
             <View style={styles.datePickerButtons}>
               <Pressable
-                style={styles.datePickerCancel}
-                onPress={() => setShowDatePicker(false)}
-              >
-                <Text style={styles.datePickerCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
                 style={[
-                  styles.datePickerApply,
-                  (pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate) && styles.datePickerApplyDisabled,
+                  styles.datePickerButton,
+                  styles.datePickerButtonChange,
+                  (pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate) && styles.datePickerButtonDisabled,
                 ]}
                 onPress={handleChangeDate}
                 disabled={pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate}
               >
                 <Text style={[
-                  styles.datePickerApplyText,
-                  (pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate) && styles.datePickerApplyTextDisabled,
+                  styles.datePickerButtonText,
+                  (pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate) && styles.datePickerButtonTextDisabled,
                 ]}>
                   {isChangingDate ? 'Moving...' : 'Change to Date'}
                 </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.datePickerButton,
+                  styles.datePickerButtonGo,
+                  formatDateLocal(pickerDate) === currentDate && styles.datePickerButtonDisabled,
+                ]}
+                onPress={handleGoToDate}
+                disabled={formatDateLocal(pickerDate) === currentDate}
+              >
+                <Text style={[
+                  styles.datePickerButtonText,
+                  styles.datePickerButtonTextGo,
+                  formatDateLocal(pickerDate) === currentDate && styles.datePickerButtonTextDisabled,
+                ]}>
+                  Go to Date
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.datePickerButton, styles.datePickerButtonCancel]}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.datePickerButtonTextCancel}>Cancel</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -900,38 +927,41 @@ const styles = StyleSheet.create({
     color: colors.text.dim,
   },
   datePickerButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
+    flexDirection: 'column',
+    gap: spacing.sm,
     marginTop: spacing.lg,
   },
-  datePickerCancel: {
-    flex: 1,
+  datePickerButton: {
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.background.tertiary,
     alignItems: 'center',
   },
-  datePickerCancelText: {
-    fontSize: fontSize.md,
-    color: colors.text.muted,
-  },
-  datePickerApply: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
+  datePickerButtonChange: {
     backgroundColor: colors.accent.orange,
-    alignItems: 'center',
   },
-  datePickerApplyDisabled: {
+  datePickerButtonGo: {
+    backgroundColor: colors.accent.blue,
+  },
+  datePickerButtonCancel: {
+    backgroundColor: colors.background.tertiary,
+  },
+  datePickerButtonDisabled: {
     backgroundColor: colors.background.tertiary,
     opacity: 0.5,
   },
-  datePickerApplyText: {
+  datePickerButtonText: {
     fontSize: fontSize.md,
     color: colors.text.primary,
     fontWeight: '600',
   },
-  datePickerApplyTextDisabled: {
+  datePickerButtonTextGo: {
+    color: colors.text.primary,
+  },
+  datePickerButtonTextCancel: {
+    fontSize: fontSize.md,
+    color: colors.text.muted,
+  },
+  datePickerButtonTextDisabled: {
     color: colors.text.dim,
   },
   dateWarning: {

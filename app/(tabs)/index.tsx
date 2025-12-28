@@ -67,7 +67,7 @@ export default function CommandCenterScreen() {
   // Database hooks
   const { getSupplementsForDate, toggleSupplement, setSupplementValue, getToday } = useSupplements();
   const { getTotalsForDate } = useMealEntries();
-  const { initializeDay, getStreak, getStatsForRange } = useDailyStats();
+  const { initializeDay, getCombinedStreak, getStatsForRange } = useDailyStats();
 
   // State
   const [supplements, setSupplements] = useState<SupplementWithValue[]>([]);
@@ -93,14 +93,15 @@ export default function CommandCenterScreen() {
           await initializeDay();
 
           const today = getToday();
-          const [supps, tots, supplementStreak] = await Promise.all([
+          const [supps, tots, streakData] = await Promise.all([
             getSupplementsForDate(today),
             getTotalsForDate(today),
-            getStreak('supplements_complete'),
+            getCombinedStreak(),
           ]);
           setSupplements(supps);
           setTotals(tots);
-          setStreakDays(supplementStreak);
+          // Streak = consecutive successful finalized days + 1 if today is also complete
+          setStreakDays(streakData.baseStreak + (streakData.todayComplete ? 1 : 0));
 
           // Calculate current day (days since first entry in daily_stats)
           // Get all stats from a long time ago to today
@@ -111,16 +112,20 @@ export default function CommandCenterScreen() {
         }
       };
       loadData();
-    }, [initializeDay, getSupplementsForDate, getTotalsForDate, getToday, getStreak, getStatsForRange])
+    }, [initializeDay, getSupplementsForDate, getTotalsForDate, getToday, getCombinedStreak, getStatsForRange])
   );
 
   // Handle supplement tap (for pills)
   const handleSupplementPress = useCallback(async (supp: SupplementWithValue) => {
     const today = getToday();
     await toggleSupplement(supp.id, today);
-    const updated = await getSupplementsForDate(today);
+    const [updated, streakData] = await Promise.all([
+      getSupplementsForDate(today),
+      getCombinedStreak(),
+    ]);
     setSupplements(updated);
-  }, [getToday, toggleSupplement, getSupplementsForDate]);
+    setStreakDays(streakData.baseStreak + (streakData.todayComplete ? 1 : 0));
+  }, [getToday, toggleSupplement, getSupplementsForDate, getCombinedStreak]);
 
   // Handle water dot tap - clicking a dot sets value to that level, or unselects if already at that level
   const handleWaterDotPress = useCallback(async (supp: SupplementWithValue, dotIndex: number) => {
@@ -132,9 +137,13 @@ export default function CommandCenterScreen() {
     const newValue = supp.value === targetValue ? dotIndex : targetValue;
 
     await setSupplementValue(supp.id, today, newValue);
-    const updated = await getSupplementsForDate(today);
+    const [updated, streakData] = await Promise.all([
+      getSupplementsForDate(today),
+      getCombinedStreak(),
+    ]);
     setSupplements(updated);
-  }, [getToday, setSupplementValue, getSupplementsForDate]);
+    setStreakDays(streakData.baseStreak + (streakData.todayComplete ? 1 : 0));
+  }, [getToday, setSupplementValue, getSupplementsForDate, getCombinedStreak]);
 
   // Separate water from other supplements for different rendering
   const pillSupplements = supplements.filter(s => s.target === 1);
