@@ -32,6 +32,12 @@ export interface DayTotals {
   calories: number;
 }
 
+export interface RecentCustomItem {
+  name: string;
+  protein: number;
+  calories: number;
+}
+
 export function useMealEntries() {
   const db = useSQLiteContext();
   const { updateStatsForDate } = useDailyStats();
@@ -219,6 +225,20 @@ export function useMealEntries() {
     return result.map(r => r.date);
   }, [db]);
 
+  // Get unique recent custom items (user-added, not from foods table)
+  const getRecentCustomItems = useCallback(async (limit: number = 20): Promise<RecentCustomItem[]> => {
+    // Get unique custom items by name, ordered by most recent usage
+    const result = await db.getAllAsync<RecentCustomItem>(`
+      SELECT name, protein, calories
+      FROM meal_entry_items
+      WHERE food_id IS NULL
+      GROUP BY LOWER(name)
+      ORDER BY MAX(created_at) DESC
+      LIMIT ?
+    `, [limit]);
+    return result;
+  }, [db]);
+
   // Delete all entries for a specific date
   const deleteEntriesForDate = useCallback(async (date: string): Promise<void> => {
     await db.runAsync(
@@ -245,6 +265,7 @@ export function useMealEntries() {
     updateEntryTime,
     getEntry,
     getDaysWithEntries,
+    getRecentCustomItems,
     deleteEntriesForDate,
     deleteAllEntries,
   };

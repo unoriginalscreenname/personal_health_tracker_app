@@ -8,6 +8,7 @@ export {
   type MealEntry,
   type MealEntryItem,
   type DayTotals,
+  type RecentCustomItem,
 } from './hooks/useMealEntries';
 export {
   useSupplements,
