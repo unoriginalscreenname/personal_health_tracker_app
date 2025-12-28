@@ -1,5 +1,6 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Dumbbell } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 
 export default function WorkoutScreen() {
@@ -8,8 +9,8 @@ export default function WorkoutScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>The Armory</Text>
-          <Text style={styles.subtitle}>Track your training</Text>
+          <Dumbbell color={colors.text.primary} size={24} />
+          <Text style={styles.title}>Work</Text>
         </View>
 
         {/* Workout Selector */}
@@ -47,17 +48,15 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   header: {
-    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   title: {
-    fontSize: fontSize.xxl,
-    fontWeight: 'bold',
+    fontSize: fontSize.xl,
+    fontWeight: '200',
     color: colors.text.primary,
-  },
-  subtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.muted,
-    marginTop: spacing.xs,
   },
   card: {
     backgroundColor: colors.background.secondary,

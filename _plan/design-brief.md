@@ -43,6 +43,16 @@ This app should feel like a **command center**, not a lifestyle app. Think Bloom
 
 ## Component Patterns
 
+### Page Headers
+Icon + thin text title, aligned left. Keep it lightweight and consistent across screens.
+- Icon matches the tab bar icon for that section (e.g., Utensils for Food)
+- Title uses thin font weight (200) at `fontSize.xl`
+- Icon and text in a horizontal row with small gap
+- Settings or action buttons aligned right if needed
+- No decorative subtitles or descriptions
+
+Example: `[Utensils icon] Food` with settings gear on the right.
+
 ### Tabs
 Underline indicator, not filled backgrounds. Icon + label, dim when inactive, bright when active. The active state is communicated through a subtle bottom border—no need for heavy color fills that compete with content.
 

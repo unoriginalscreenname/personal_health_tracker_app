@@ -176,7 +176,6 @@ export default function CommandCenterScreen() {
           <Flame color={colors.accent.orange} size={36} fill={colors.accent.orange} />
           <View style={styles.streakInfo}>
             <Text style={styles.streakCount}>{streakDays}</Text>
-            <Text style={styles.streakLabel}>Day Streak</Text>
           </View>
           <View style={styles.dayBadge}>
             <Text style={styles.dayBadgeText}>Day {currentDay}/30</Text>

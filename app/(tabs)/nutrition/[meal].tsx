@@ -6,16 +6,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFoods, useMealEntries, type Food } from '@/db';
 
-const mealInfo: Record<string, { name: string; time: string }> = {
-  opener: { name: 'The Opener', time: '12 PM' },
-  bridge: { name: 'The Bridge', time: '3 PM' },
-  closer: { name: 'The Closer', time: '6 PM' },
-};
-
 export default function MealDetailScreen() {
   const { meal } = useLocalSearchParams<{ meal: string }>();
   const router = useRouter();
-  const info = mealInfo[meal] || { name: 'Meal', time: '' };
 
   // Database hooks
   const { getFoods } = useFoods();
@@ -92,10 +85,8 @@ export default function MealDetailScreen() {
         >
           <ChevronLeft color={colors.text.primary} size={24} />
         </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>{info.name}</Text>
-          <Text style={styles.time}>{info.time}</Text>
-        </View>
+        <PenLine color={colors.text.primary} size={24} />
+        <Text style={styles.title}>Log Food</Text>
         {addedFoods.size > 0 && (
           <View style={styles.addedBadge}>
             <Text style={styles.addedBadgeText}>{addedFoods.size} added</Text>
@@ -109,7 +100,7 @@ export default function MealDetailScreen() {
           style={({ pressed }) => [styles.customFoodButton, pressed && styles.customFoodButtonPressed]}
           onPress={handleAddCustomFood}
         >
-          <PenLine color={colors.text.secondary} size={18} />
+          <PenLine color={colors.accent.green} size={18} />
           <Text style={styles.customFoodButtonText}>Add custom food...</Text>
         </Pressable>
 
@@ -174,17 +165,11 @@ const styles = StyleSheet.create({
   backButtonPressed: {
     opacity: 0.7,
   },
-  headerText: {
-    flex: 1,
-  },
   title: {
+    flex: 1,
     fontSize: fontSize.xl,
-    fontWeight: '600',
+    fontWeight: '200',
     color: colors.text.primary,
-  },
-  time: {
-    fontSize: fontSize.sm,
-    color: colors.text.dim,
   },
   addedBadge: {
     backgroundColor: colors.accent.green + '20',
@@ -204,18 +189,22 @@ const styles = StyleSheet.create({
   customFoodButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.accent.green + '40',
+    borderRadius: borderRadius.md,
+    borderStyle: 'dashed',
   },
   customFoodButtonPressed: {
     opacity: 0.7,
+    backgroundColor: colors.accent.green + '10',
   },
   customFoodButtonText: {
-    fontSize: fontSize.md,
-    color: colors.text.muted,
+    fontSize: fontSize.sm,
+    color: colors.accent.green,
   },
   sectionLabel: {
     fontSize: fontSize.xs,

@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: fontSize.xl,
-    fontWeight: '600',
+    fontWeight: '200',
     color: colors.text.primary,
   },
   deleteButton: {

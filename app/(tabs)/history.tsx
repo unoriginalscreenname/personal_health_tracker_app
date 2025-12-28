@@ -1,5 +1,6 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Calendar } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 
 export default function HistoryScreen() {
@@ -8,8 +9,8 @@ export default function HistoryScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>The Log</Text>
-          <Text style={styles.subtitle}>Your progress over time</Text>
+          <Calendar color={colors.text.primary} size={24} />
+          <Text style={styles.title}>Log</Text>
         </View>
 
         {/* Calendar View */}
@@ -46,17 +47,15 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   header: {
-    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   title: {
-    fontSize: fontSize.xxl,
-    fontWeight: 'bold',
+    fontSize: fontSize.xl,
+    fontWeight: '200',
     color: colors.text.primary,
-  },
-  subtitle: {
-    fontSize: fontSize.md,
-    color: colors.text.muted,
-    marginTop: spacing.xs,
   },
   card: {
     backgroundColor: colors.background.secondary,

@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { Sunrise, Sun, Sunset, PenLine, Settings } from 'lucide-react-native';
+import { Sunrise, Sun, Sunset, PenLine, Settings, Utensils } from 'lucide-react-native';
 import { useState, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useMealEntries, type MealEntry } from '@/db';
@@ -56,7 +56,10 @@ export default function NutritionScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header with settings */}
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Fuel Tank</Text>
+          <View style={styles.titleRow}>
+            <Utensils color={colors.text.primary} size={24} />
+            <Text style={styles.title}>Food</Text>
+          </View>
           <Pressable
             style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
             onPress={() => router.push('/nutrition/settings')}
@@ -105,7 +108,7 @@ export default function NutritionScreen() {
           style={({ pressed }) => [styles.logButton, pressed && styles.logButtonPressed]}
           onPress={() => router.push('/nutrition/opener')}
         >
-          <PenLine color={colors.text.muted} size={16} />
+          <PenLine color={colors.accent.green} size={18} />
           <Text style={styles.logButtonText}>Log food</Text>
         </Pressable>
 
@@ -161,9 +164,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   title: {
     fontSize: fontSize.xl,
-    fontWeight: '600',
+    fontWeight: '200',
     color: colors.text.primary,
   },
   settingsButton: {
@@ -248,16 +256,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     gap: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border.primary,
+    borderColor: colors.accent.green + '40',
     borderRadius: borderRadius.md,
+    borderStyle: 'dashed',
   },
   logButtonPressed: {
     opacity: 0.7,
-    backgroundColor: colors.background.secondary,
+    backgroundColor: colors.accent.green + '10',
   },
   logButtonText: {
     fontSize: fontSize.sm,
-    color: colors.text.secondary,
+    color: colors.accent.green,
   },
 
   // Timeline
