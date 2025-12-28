@@ -8,19 +8,24 @@ export interface DailyStats {
   finalized: number;
 }
 
+// Helper to format Date to YYYY-MM-DD in local timezone
+function formatDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function useDailyStats() {
   const db = useSQLiteContext();
 
-  // Get today's date string (YYYY-MM-DD)
+  // Get today's date string (YYYY-MM-DD) in local timezone
   const getToday = useCallback((): string => {
-    return new Date().toISOString().split('T')[0];
+    return formatDateLocal(new Date());
   }, []);
 
-  // Get yesterday's date string
+  // Get yesterday's date string in local timezone
   const getYesterday = useCallback((): string => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
+    return formatDateLocal(d);
   }, []);
 
   // Check if a row exists for a given date
@@ -124,7 +129,7 @@ export function useDailyStats() {
     dayAfterLast.setDate(dayAfterLast.getDate() + 1);
 
     while (dayAfterLast <= yesterdayDate) {
-      const dateStr = dayAfterLast.toISOString().split('T')[0];
+      const dateStr = formatDateLocal(dayAfterLast);
 
       // Skip if this date already has a row (shouldn't happen, but safety check)
       const exists = await hasRowForDate(dateStr);
@@ -186,7 +191,7 @@ export function useDailyStats() {
     for (const row of rows) {
       const expectedDate = new Date(startDate);
       expectedDate.setDate(startDate.getDate() - streak);
-      const expected = expectedDate.toISOString().split('T')[0];
+      const expected = formatDateLocal(expectedDate);
 
       if (row.date === expected && row.value === 1) {
         streak++;

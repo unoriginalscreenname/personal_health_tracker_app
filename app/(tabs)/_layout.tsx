@@ -51,6 +51,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} />,
         }}
       />
+      <Tabs.Screen
+        name="stats"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
     </Tabs>
   );
 }

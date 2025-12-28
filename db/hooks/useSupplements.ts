@@ -16,13 +16,18 @@ export interface SupplementWithValue extends Supplement {
   value: number; // current day's value
 }
 
+// Helper to format Date to YYYY-MM-DD in local timezone
+function formatDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function useSupplements() {
   const db = useSQLiteContext();
   const { updateTodayStats } = useDailyStats();
 
-  // Get today's date string
+  // Get today's date string in local timezone
   const getToday = useCallback((): string => {
-    return new Date().toISOString().split('T')[0];
+    return formatDateLocal(new Date());
   }, []);
 
   // Get all supplements with their value for a specific date
@@ -128,7 +133,7 @@ export function useSupplements() {
     for (const row of completeDates) {
       const expectedDate = new Date(today);
       expectedDate.setDate(today.getDate() - streak);
-      const expected = expectedDate.toISOString().split('T')[0];
+      const expected = formatDateLocal(expectedDate);
 
       if (row.date === expected) {
         streak++;

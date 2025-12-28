@@ -3,6 +3,11 @@ import { useCallback } from 'react';
 import type { Food } from './useFoods';
 import { useDailyStats } from './useDailyStats';
 
+// Helper to format Date to YYYY-MM-DD in local timezone
+function formatDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export interface MealEntryItem {
   id: number;
   meal_entry_id: number;
@@ -69,16 +74,16 @@ export function useMealEntries() {
     };
   }, [db]);
 
-  // Get today's date string
+  // Get today's date string in local timezone
   const getToday = useCallback((): string => {
-    return new Date().toISOString().split('T')[0];
+    return formatDateLocal(new Date());
   }, []);
 
-  // Create a new meal entry
-  const createEntry = useCallback(async (mealType?: string): Promise<number> => {
+  // Create a new meal entry (optionally for a specific date)
+  const createEntry = useCallback(async (mealType?: string, forDate?: string): Promise<number> => {
     const now = new Date();
-    const date = now.toISOString().split('T')[0];
-    const loggedAt = now.toISOString();
+    const date = forDate ?? formatDateLocal(now);
+    const loggedAt = now.toISOString(); // Timestamp can stay UTC
 
     const result = await db.runAsync(
       'INSERT INTO meal_entries (date, logged_at, meal_type) VALUES (?, ?, ?)',

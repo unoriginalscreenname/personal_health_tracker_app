@@ -157,7 +157,13 @@ export default function CommandCenterScreen() {
         </Text>
 
         {/* Streak Banner */}
-        <View style={styles.streakBanner}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.streakBanner,
+            pressed && styles.streakBannerPressed,
+          ]}
+          onPress={() => router.push('/stats')}
+        >
           <Flame color={colors.accent.orange} size={36} fill={colors.accent.orange} />
           <View style={styles.streakInfo}>
             <Text style={styles.streakCount}>{streakDays}</Text>
@@ -166,7 +172,7 @@ export default function CommandCenterScreen() {
           <View style={styles.dayBadge}>
             <Text style={styles.dayBadgeText}>Day {currentDay}/30</Text>
           </View>
-        </View>
+        </Pressable>
 
         {/* Fasting Status */}
         <View style={[
@@ -367,6 +373,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.accent.orange + '30',
+  },
+  streakBannerPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   streakInfo: {
     marginLeft: spacing.md,
