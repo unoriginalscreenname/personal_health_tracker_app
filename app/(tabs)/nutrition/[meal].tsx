@@ -19,12 +19,13 @@ export default function MealDetailScreen() {
 
   // Database hooks
   const { getFoods } = useFoods();
-  const { createEntry, addFoodToEntry } = useMealEntries();
+  const { createEntry, addFoodToEntry, removeItem } = useMealEntries();
 
   // State
   const [foods, setFoods] = useState<Food[]>([]);
   const [currentEntryId, setCurrentEntryId] = useState<number | null>(null);
-  const [addedFoodIds, setAddedFoodIds] = useState<Set<number>>(new Set());
+  // Map food ID to entry item ID for removal
+  const [addedFoods, setAddedFoods] = useState<Map<number, number>>(new Map());
 
   // Load foods from database
   useEffect(() => {
@@ -39,25 +40,38 @@ export default function MealDetailScreen() {
     loadFoods();
   }, [getFoods]);
 
-  // Handle adding a food from the quick add list
-  const handleAddFood = useCallback(async (food: Food) => {
+  // Handle toggling a food from the quick add list
+  const handleToggleFood = useCallback(async (food: Food) => {
     try {
-      let entryId = currentEntryId;
+      const existingItemId = addedFoods.get(food.id);
 
-      // Create entry if this is the first item
-      if (!entryId) {
-        entryId = await createEntry(meal);
-        setCurrentEntryId(entryId);
+      if (existingItemId) {
+        // Food is already added - remove it
+        await removeItem(existingItemId);
+        setAddedFoods(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(food.id);
+          return newMap;
+        });
+      } else {
+        // Food not added - add it
+        let entryId = currentEntryId;
+
+        // Create entry if this is the first item
+        if (!entryId) {
+          entryId = await createEntry(meal);
+          setCurrentEntryId(entryId);
+        }
+
+        // Add food to entry and store the item ID
+        const itemId = await addFoodToEntry(entryId, food);
+        setAddedFoods(prev => new Map(prev).set(food.id, itemId));
       }
-
-      // Add food to entry
-      await addFoodToEntry(entryId, food);
-      setAddedFoodIds(prev => new Set(prev).add(food.id));
     } catch (error) {
-      console.error('Failed to add food:', error);
-      Alert.alert('Error', 'Failed to add food');
+      console.error('Failed to toggle food:', error);
+      Alert.alert('Error', 'Failed to update food');
     }
-  }, [currentEntryId, meal, createEntry, addFoodToEntry]);
+  }, [currentEntryId, meal, createEntry, addFoodToEntry, removeItem, addedFoods]);
 
   // Navigate to custom food screen
   const handleAddCustomFood = useCallback(() => {
@@ -82,9 +96,9 @@ export default function MealDetailScreen() {
           <Text style={styles.title}>{info.name}</Text>
           <Text style={styles.time}>{info.time}</Text>
         </View>
-        {addedFoodIds.size > 0 && (
+        {addedFoods.size > 0 && (
           <View style={styles.addedBadge}>
-            <Text style={styles.addedBadgeText}>{addedFoodIds.size} added</Text>
+            <Text style={styles.addedBadgeText}>{addedFoods.size} added</Text>
           </View>
         )}
       </View>
@@ -103,7 +117,7 @@ export default function MealDetailScreen() {
         <Text style={styles.sectionLabel}>QUICK ADD</Text>
         <View style={styles.foodList}>
           {foods.map((food) => {
-            const isAdded = addedFoodIds.has(food.id);
+            const isAdded = addedFoods.has(food.id);
             return (
               <Pressable
                 key={food.id}
@@ -112,7 +126,7 @@ export default function MealDetailScreen() {
                   isAdded && styles.foodItemAdded,
                   pressed && styles.foodItemPressed
                 ]}
-                onPress={() => handleAddFood(food)}
+                onPress={() => handleToggleFood(food)}
               >
                 <View style={styles.foodInfo}>
                   <Text style={[styles.foodName, isAdded && styles.foodNameAdded]}>

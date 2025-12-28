@@ -41,6 +41,14 @@ This app should feel like a **command center**, not a lifestyle app. Think Bloom
 - **Card grids**: Equal-sized tappable cells, 2-3 columns depending on content
 - **Compact lists**: Horizontal chip-style for small items, vertical cards for detail
 
+## Component Patterns
+
+### Tabs
+Underline indicator, not filled backgrounds. Icon + label, dim when inactive, bright when active. The active state is communicated through a subtle bottom border—no need for heavy color fills that compete with content.
+
+### Secondary Actions
+Dashed borders for "add" or "log" CTAs (e.g., "Log food", "Add food to this entry"). These invite action without demanding it. The dashed style signals "optional, but here if you need it" rather than a primary action. Use accent color at low opacity for the border, accent color for text/icon.
+
 ## Color Usage
 
 - Dark slate backgrounds (#0f172a, #1e293b)

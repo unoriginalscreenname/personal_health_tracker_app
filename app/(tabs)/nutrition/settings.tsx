@@ -1,10 +1,12 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, Trash2, Calendar } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Trash2, Calendar, Utensils } from 'lucide-react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
-import { useMealEntries, type MealEntry } from '@/db';
+import { useMealEntries, useFoods, type MealEntry, type Food } from '@/db';
+
+type TabType = 'entries' | 'foods';
 
 // Format date string to display (e.g., "Dec 27, 2025")
 function formatDate(dateString: string): string {
@@ -35,11 +37,14 @@ function formatTime(isoString: string): string {
 export default function NutritionSettingsScreen() {
   const router = useRouter();
   const { getDaysWithEntries, getEntriesForDate, deleteEntriesForDate, deleteAllEntries, deleteEntry } = useMealEntries();
+  const { getFoods } = useFoods();
 
   // State
+  const [activeTab, setActiveTab] = useState<TabType>('entries');
   const [days, setDays] = useState<string[]>([]);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [dayEntries, setDayEntries] = useState<MealEntry[]>([]);
+  const [foods, setFoods] = useState<Food[]>([]);
 
   // Load days with entries
   const loadDays = useCallback(async () => {
@@ -61,9 +66,20 @@ export default function NutritionSettingsScreen() {
     }
   }, [getEntriesForDate]);
 
+  // Load foods list
+  const loadFoods = useCallback(async () => {
+    try {
+      const foodsData = await getFoods();
+      setFoods(foodsData);
+    } catch (error) {
+      console.error('Failed to load foods:', error);
+    }
+  }, [getFoods]);
+
   useEffect(() => {
     loadDays();
-  }, [loadDays]);
+    loadFoods();
+  }, [loadDays, loadFoods]);
 
   useEffect(() => {
     if (selectedDay) {
@@ -163,19 +179,32 @@ export default function NutritionSettingsScreen() {
     );
   };
 
+  // Get header title based on state
+  const getHeaderTitle = () => {
+    if (selectedDay) return formatDate(selectedDay);
+    return 'Food Settings';
+  };
+
+  // Handle back button
+  const handleBack = () => {
+    if (selectedDay) {
+      handleBackToDays();
+    } else {
+      router.back();
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
           style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-          onPress={selectedDay ? handleBackToDays : () => router.back()}
+          onPress={handleBack}
         >
           <ChevronLeft color={colors.text.primary} size={24} />
         </Pressable>
-        <Text style={styles.title}>
-          {selectedDay ? formatDate(selectedDay) : 'Food Data'}
-        </Text>
+        <Text style={styles.title}>{getHeaderTitle()}</Text>
         {selectedDay && (
           <Pressable
             style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
@@ -186,9 +215,39 @@ export default function NutritionSettingsScreen() {
         )}
       </View>
 
+      {/* Tab Bar - only show when not viewing a specific day */}
+      {!selectedDay && (
+        <View style={styles.tabBar}>
+          <Pressable
+            style={[styles.tab, activeTab === 'entries' && styles.tabActive]}
+            onPress={() => setActiveTab('entries')}
+          >
+            <Calendar
+              color={activeTab === 'entries' ? colors.text.primary : colors.text.dim}
+              size={18}
+            />
+            <Text style={[styles.tabText, activeTab === 'entries' && styles.tabTextActive]}>
+              Entries
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tab, activeTab === 'foods' && styles.tabActive]}
+            onPress={() => setActiveTab('foods')}
+          >
+            <Utensils
+              color={activeTab === 'foods' ? colors.text.primary : colors.text.dim}
+              size={18}
+            />
+            <Text style={[styles.tabText, activeTab === 'foods' && styles.tabTextActive]}>
+              Foods
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {!selectedDay ? (
-          // Day list view
+        {!selectedDay && activeTab === 'entries' && (
+          // Entries tab - Day list view
           <>
             {days.length === 0 ? (
               <View style={styles.emptyState}>
@@ -229,7 +288,34 @@ export default function NutritionSettingsScreen() {
               </Pressable>
             )}
           </>
-        ) : (
+        )}
+
+        {!selectedDay && activeTab === 'foods' && (
+          // Foods tab - List of food items
+          <>
+            {foods.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Utensils color={colors.text.dim} size={48} />
+                <Text style={styles.emptyStateText}>No food items</Text>
+              </View>
+            ) : (
+              <View style={styles.foodsList}>
+                {foods.map((food) => (
+                  <View key={food.id} style={styles.foodRow}>
+                    <View style={styles.foodInfo}>
+                      <Text style={styles.foodItemName}>{food.name}</Text>
+                      <Text style={styles.foodItemMacros}>
+                        {food.protein}g protein · {food.calories} cal
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
+        {selectedDay && (
           // Day detail view (timeline)
           <>
             {dayEntries.length === 0 ? (
@@ -313,6 +399,33 @@ const styles = StyleSheet.create({
   },
   deleteButtonPressed: {
     opacity: 0.7,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.background.tertiary,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: colors.text.primary,
+  },
+  tabText: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.text.dim,
+  },
+  tabTextActive: {
+    color: colors.text.primary,
   },
   scrollView: {
     flex: 1,
@@ -450,5 +563,30 @@ const styles = StyleSheet.create({
   },
   entryDeleteButtonPressed: {
     opacity: 0.7,
+  },
+
+  // Foods list
+  foodsList: {
+    gap: spacing.sm,
+  },
+  foodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  foodInfo: {
+    flex: 1,
+  },
+  foodItemName: {
+    fontSize: fontSize.md,
+    fontWeight: '500',
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  foodItemMacros: {
+    fontSize: fontSize.sm,
+    color: colors.text.muted,
   },
 });

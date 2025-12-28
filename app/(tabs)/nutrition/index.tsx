@@ -77,7 +77,8 @@ export default function NutritionScreen() {
           </View>
         </View>
 
-        {/* Meal Grid */}
+        {/* TODO: Remove meal grid code entirely - hidden for now */}
+        {/* Meal Grid - HIDDEN
         <View style={styles.mealGrid}>
           {meals.map((meal) => {
             const IconComponent = meal.icon;
@@ -97,6 +98,7 @@ export default function NutritionScreen() {
             );
           })}
         </View>
+        */}
 
         {/* Log Food CTA */}
         <Pressable
@@ -139,7 +141,7 @@ export default function NutritionScreen() {
         {entries.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No food logged today</Text>
-            <Text style={styles.emptyStateSubtext}>Tap a meal above to start tracking</Text>
+            <Text style={styles.emptyStateSubtext}>Tap "Log food" to start tracking</Text>
           </View>
         )}
       </ScrollView>

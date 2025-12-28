@@ -49,6 +49,28 @@ npx expo run:android
 # Or manually: adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Deploy to Physical Phone (USB)
+
+Build a standalone release APK and install on a connected phone:
+
+```bash
+# Verify phone is connected (should show device ID, not "unauthorized")
+adb devices
+
+# Build release APK (JS bundle embedded, runs without Metro)
+cd android && ./gradlew assembleRelease && cd ..
+
+# Install on phone
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+```
+
+To update the app after code changes, run the build and install commands again.
+
+**Troubleshooting:**
+- If phone shows "unauthorized": check phone screen for USB debugging prompt, tap Allow
+- If phone not detected: try a different USB cable (must be data cable, not charge-only)
+- Set USB mode to "File Transfer" in phone's notification shade
+
 ## Architecture
 
 ### Tech Stack

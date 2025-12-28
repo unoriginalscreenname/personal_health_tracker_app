@@ -148,6 +148,14 @@ export function useMealEntries() {
     );
   }, [db]);
 
+  // Update entry logged_at time
+  const updateEntryTime = useCallback(async (entryId: number, newTime: Date): Promise<void> => {
+    await db.runAsync(
+      'UPDATE meal_entries SET logged_at = ? WHERE id = ?',
+      [newTime.toISOString(), entryId]
+    );
+  }, [db]);
+
   // Get entry by ID
   const getEntry = useCallback(async (entryId: number): Promise<MealEntry | null> => {
     const entry = await db.getFirstAsync<Omit<MealEntry, 'items'>>(
@@ -196,6 +204,7 @@ export function useMealEntries() {
     updateItemQuantity,
     removeItem,
     deleteEntry,
+    updateEntryTime,
     getEntry,
     getDaysWithEntries,
     deleteEntriesForDate,

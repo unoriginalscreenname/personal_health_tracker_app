@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, Plus, Trash2, X, PenLine } from 'lucide-react-native';
+import { ChevronLeft, Plus, Trash2, X, PenLine, Clock } from 'lucide-react-native';
 import { useState, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFoods, useMealEntries, type Food, type MealEntry } from '@/db';
@@ -24,12 +24,16 @@ export default function EntryDetailScreen() {
 
   // Database hooks
   const { getFoods } = useFoods();
-  const { getEntry, addFoodToEntry, removeItem, deleteEntry } = useMealEntries();
+  const { getEntry, addFoodToEntry, removeItem, deleteEntry, updateEntryTime } = useMealEntries();
 
   // State
   const [entry, setEntry] = useState<MealEntry | null>(null);
   const [foods, setFoods] = useState<Food[]>([]);
   const [showAddFood, setShowAddFood] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [selectedHour, setSelectedHour] = useState(12);
+  const [selectedMinute, setSelectedMinute] = useState(0);
+  const [selectedAmPm, setSelectedAmPm] = useState<'AM' | 'PM'>('PM');
 
   // Load entry and foods
   const loadData = useCallback(async () => {
@@ -72,28 +76,15 @@ export default function EntryDetailScreen() {
     });
   }, [entryId, router]);
 
-  // Handle removing an item
-  const handleRemoveItem = useCallback(async (itemId: number, itemName: string) => {
-    Alert.alert(
-      'Remove Item',
-      `Remove "${itemName}" from this entry?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeItem(itemId);
-              await loadData();
-            } catch (error) {
-              console.error('Failed to remove item:', error);
-              Alert.alert('Error', 'Failed to remove item');
-            }
-          },
-        },
-      ]
-    );
+  // Handle removing an item (no confirmation)
+  const handleRemoveItem = useCallback(async (itemId: number) => {
+    try {
+      await removeItem(itemId);
+      await loadData();
+    } catch (error) {
+      console.error('Failed to remove item:', error);
+      Alert.alert('Error', 'Failed to remove item');
+    }
   }, [removeItem, loadData]);
 
   // Handle deleting the entire entry
@@ -119,6 +110,38 @@ export default function EntryDetailScreen() {
       ]
     );
   }, [entryId, deleteEntry, router]);
+
+  // Open time picker with current entry time
+  const handleOpenTimePicker = useCallback(() => {
+    if (!entry) return;
+    const date = new Date(entry.logged_at);
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12; // Convert to 12-hour format
+    setSelectedHour(hours);
+    setSelectedMinute(minutes);
+    setSelectedAmPm(ampm);
+    setShowTimePicker(true);
+  }, [entry]);
+
+  // Save the new time
+  const handleSaveTime = useCallback(async () => {
+    if (!entry) return;
+    try {
+      const date = new Date(entry.logged_at);
+      let hours = selectedHour;
+      if (selectedAmPm === 'PM' && hours !== 12) hours += 12;
+      if (selectedAmPm === 'AM' && hours === 12) hours = 0;
+      date.setHours(hours, selectedMinute, 0, 0);
+      await updateEntryTime(entryId, date);
+      await loadData();
+      setShowTimePicker(false);
+    } catch (error) {
+      console.error('Failed to update time:', error);
+      Alert.alert('Error', 'Failed to update time');
+    }
+  }, [entry, selectedHour, selectedMinute, selectedAmPm, entryId, updateEntryTime, loadData]);
 
   if (!entry) {
     return (
@@ -149,12 +172,13 @@ export default function EntryDetailScreen() {
         >
           <ChevronLeft color={colors.text.primary} size={24} />
         </Pressable>
-        <View style={styles.headerText}>
+        <Pressable
+          style={({ pressed }) => [styles.headerText, pressed && styles.headerTextPressed]}
+          onPress={handleOpenTimePicker}
+        >
+          <Clock color={colors.text.dim} size={16} style={{ marginRight: spacing.xs }} />
           <Text style={styles.title}>{formatTime(entry.logged_at)}</Text>
-          {entry.meal_type && (
-            <Text style={styles.mealType}>{entry.meal_type}</Text>
-          )}
-        </View>
+        </Pressable>
         <Pressable
           style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
           onPress={handleDeleteEntry}
@@ -182,7 +206,7 @@ export default function EntryDetailScreen() {
               </View>
               <Pressable
                 style={({ pressed }) => [styles.removeButton, pressed && styles.removeButtonPressed]}
-                onPress={() => handleRemoveItem(item.id, item.name)}
+                onPress={() => handleRemoveItem(item.id)}
               >
                 <X color={colors.text.dim} size={18} />
               </Pressable>
@@ -234,6 +258,89 @@ export default function EntryDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Time Picker Modal */}
+      <Modal
+        visible={showTimePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTimePicker(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowTimePicker(false)}>
+          <Pressable style={styles.timePickerContainer} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.timePickerTitle}>Set Time</Text>
+
+            <View style={styles.timePickerRow}>
+              {/* Hour */}
+              <View style={styles.timePickerColumn}>
+                <Pressable
+                  style={styles.timePickerArrow}
+                  onPress={() => setSelectedHour(h => h === 12 ? 1 : h + 1)}
+                >
+                  <Text style={styles.timePickerArrowText}>▲</Text>
+                </Pressable>
+                <Text style={styles.timePickerValue}>{selectedHour}</Text>
+                <Pressable
+                  style={styles.timePickerArrow}
+                  onPress={() => setSelectedHour(h => h === 1 ? 12 : h - 1)}
+                >
+                  <Text style={styles.timePickerArrowText}>▼</Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.timePickerColon}>:</Text>
+
+              {/* Minute */}
+              <View style={styles.timePickerColumn}>
+                <Pressable
+                  style={styles.timePickerArrow}
+                  onPress={() => setSelectedMinute(m => (m + 5) % 60)}
+                >
+                  <Text style={styles.timePickerArrowText}>▲</Text>
+                </Pressable>
+                <Text style={styles.timePickerValue}>{String(selectedMinute).padStart(2, '0')}</Text>
+                <Pressable
+                  style={styles.timePickerArrow}
+                  onPress={() => setSelectedMinute(m => (m - 5 + 60) % 60)}
+                >
+                  <Text style={styles.timePickerArrowText}>▼</Text>
+                </Pressable>
+              </View>
+
+              {/* AM/PM */}
+              <View style={styles.timePickerColumn}>
+                <Pressable
+                  style={[styles.amPmButton, selectedAmPm === 'AM' && styles.amPmButtonActive]}
+                  onPress={() => setSelectedAmPm('AM')}
+                >
+                  <Text style={[styles.amPmText, selectedAmPm === 'AM' && styles.amPmTextActive]}>AM</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.amPmButton, selectedAmPm === 'PM' && styles.amPmButtonActive]}
+                  onPress={() => setSelectedAmPm('PM')}
+                >
+                  <Text style={[styles.amPmText, selectedAmPm === 'PM' && styles.amPmTextActive]}>PM</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.timePickerButtons}>
+              <Pressable
+                style={styles.timePickerCancel}
+                onPress={() => setShowTimePicker(false)}
+              >
+                <Text style={styles.timePickerCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.timePickerSave}
+                onPress={handleSaveTime}
+              >
+                <Text style={styles.timePickerSaveText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -262,16 +369,16 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerTextPressed: {
+    opacity: 0.7,
   },
   title: {
     fontSize: fontSize.xl,
     fontWeight: '600',
     color: colors.text.primary,
-  },
-  mealType: {
-    fontSize: fontSize.sm,
-    color: colors.text.dim,
-    textTransform: 'capitalize',
   },
   deleteButton: {
     width: 40,
@@ -421,6 +528,103 @@ const styles = StyleSheet.create({
   quickAddMacros: {
     fontSize: fontSize.xs,
     color: colors.accent.green,
+    fontWeight: '600',
+  },
+
+  // Time Picker Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timePickerContainer: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '80%',
+    maxWidth: 320,
+  },
+  timePickerTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  timePickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  timePickerColumn: {
+    alignItems: 'center',
+  },
+  timePickerArrow: {
+    padding: spacing.sm,
+  },
+  timePickerArrowText: {
+    fontSize: fontSize.lg,
+    color: colors.text.muted,
+  },
+  timePickerValue: {
+    fontSize: 32,
+    fontWeight: '200',
+    color: colors.text.primary,
+    fontVariant: ['tabular-nums'],
+    minWidth: 50,
+    textAlign: 'center',
+  },
+  timePickerColon: {
+    fontSize: 32,
+    fontWeight: '200',
+    color: colors.text.dim,
+    marginBottom: spacing.md,
+  },
+  amPmButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    marginVertical: spacing.xs,
+  },
+  amPmButtonActive: {
+    backgroundColor: colors.accent.blue,
+  },
+  amPmText: {
+    fontSize: fontSize.md,
+    color: colors.text.muted,
+    fontWeight: '500',
+  },
+  amPmTextActive: {
+    color: colors.text.primary,
+  },
+  timePickerButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  timePickerCancel: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background.tertiary,
+    alignItems: 'center',
+  },
+  timePickerCancelText: {
+    fontSize: fontSize.md,
+    color: colors.text.muted,
+  },
+  timePickerSave: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.accent.green,
+    alignItems: 'center',
+  },
+  timePickerSaveText: {
+    fontSize: fontSize.md,
+    color: colors.text.primary,
     fontWeight: '600',
   },
 });

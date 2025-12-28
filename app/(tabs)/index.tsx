@@ -19,6 +19,45 @@ import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFastingState } from '@/hooks/useFastingState';
 import { useSupplements, useMealEntries, type SupplementWithValue } from '@/db';
 
+// WaterDot component for individual dot clicks
+const WaterDot = ({
+  index,
+  isFilled,
+  onPress,
+}: {
+  index: number;
+  isFilled: boolean;
+  onPress: (index: number) => void;
+}) => (
+  <Pressable
+    style={({ pressed }) => [
+      waterDotStyles.dot,
+      isFilled && waterDotStyles.dotFilled,
+      pressed && waterDotStyles.dotPressed,
+    ]}
+    onPress={() => onPress(index)}
+  />
+);
+
+const waterDotStyles = StyleSheet.create({
+  dot: {
+    width: 24,
+    height: 24,
+    borderRadius: 100,
+    backgroundColor: colors.background.tertiary,
+    borderWidth: 2,
+    borderColor: colors.accent.blue + '30',
+  },
+  dotFilled: {
+    backgroundColor: colors.accent.blue,
+    borderColor: colors.accent.blue,
+  },
+  dotPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
+  },
+});
+
 export default function CommandCenterScreen() {
   const router = useRouter();
 
@@ -26,7 +65,7 @@ export default function CommandCenterScreen() {
   const { isFasting, hours, minutes, progress } = useFastingState();
 
   // Database hooks
-  const { getSupplementsForDate, toggleSupplement, incrementSupplement, getToday } = useSupplements();
+  const { getSupplementsForDate, toggleSupplement, setSupplementValue, getToday } = useSupplements();
   const { getTotalsForDate } = useMealEntries();
 
   // State
@@ -60,22 +99,27 @@ export default function CommandCenterScreen() {
     }, [getSupplementsForDate, getTotalsForDate, getToday])
   );
 
-  // Handle supplement tap
+  // Handle supplement tap (for pills)
   const handleSupplementPress = useCallback(async (supp: SupplementWithValue) => {
     const today = getToday();
-
-    if (supp.target === 1) {
-      // Toggle for pills
-      await toggleSupplement(supp.id, today);
-    } else {
-      // Increment for water (wraps back to 0 after hitting target)
-      await incrementSupplement(supp.id, today, supp.target);
-    }
-
-    // Refresh
+    await toggleSupplement(supp.id, today);
     const updated = await getSupplementsForDate(today);
     setSupplements(updated);
-  }, [getToday, toggleSupplement, incrementSupplement, getSupplementsForDate]);
+  }, [getToday, toggleSupplement, getSupplementsForDate]);
+
+  // Handle water dot tap - clicking a dot sets value to that level, or unselects if already at that level
+  const handleWaterDotPress = useCallback(async (supp: SupplementWithValue, dotIndex: number) => {
+    const today = getToday();
+    const targetValue = dotIndex + 1; // dot 0 = 1 glass, dot 1 = 2 glasses, etc.
+
+    // If clicking on a filled dot at or after current value, set to that dot's level
+    // If clicking on the last filled dot, unselect it (set to dotIndex)
+    const newValue = supp.value === targetValue ? dotIndex : targetValue;
+
+    await setSupplementValue(supp.id, today, newValue);
+    const updated = await getSupplementsForDate(today);
+    setSupplements(updated);
+  }, [getToday, setSupplementValue, getSupplementsForDate]);
 
   // Separate water from other supplements for different rendering
   const pillSupplements = supplements.filter(s => s.target === 1);
@@ -177,7 +221,7 @@ export default function CommandCenterScreen() {
               styles.logFoodCard,
               pressed && styles.cardPressed
             ]}
-            onPress={() => router.push('/nutrition/opener')}
+            onPress={() => router.navigate('/nutrition')}
           >
             <View style={styles.logFoodContent}>
               <Text style={styles.proteinValue}>{Math.round(totals.protein)}g</Text>
@@ -228,30 +272,23 @@ export default function CommandCenterScreen() {
 
           {/* Water Counter */}
           {waterSupplement && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.waterRow,
-                pressed && styles.supplementPressed
-              ]}
-              onPress={() => handleSupplementPress(waterSupplement)}
-            >
+            <View style={styles.waterRow}>
               <Droplets color={colors.accent.blue} size={20} />
               <Text style={styles.waterLabel}>Water</Text>
               <View style={styles.waterDots}>
                 {Array.from({ length: waterSupplement.target }).map((_, i) => (
-                  <View
+                  <WaterDot
                     key={i}
-                    style={[
-                      styles.waterDot,
-                      i < waterSupplement.value && styles.waterDotFilled
-                    ]}
+                    index={i}
+                    isFilled={i < waterSupplement.value}
+                    onPress={(dotIndex) => handleWaterDotPress(waterSupplement, dotIndex)}
                   />
                 ))}
               </View>
               <Text style={styles.waterCount}>
                 {waterSupplement.value}/{waterSupplement.target}L
               </Text>
-            </Pressable>
+            </View>
           )}
         </View>
 
@@ -530,18 +567,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     gap: spacing.xs,
-  },
-  waterDot: {
-    width: 24,
-    height: 24,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.tertiary,
-    borderWidth: 2,
-    borderColor: colors.accent.blue + '30',
-  },
-  waterDotFilled: {
-    backgroundColor: colors.accent.blue,
-    borderColor: colors.accent.blue,
   },
   waterCount: {
     fontSize: fontSize.sm,
