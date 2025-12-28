@@ -1,8 +1,10 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Home, Utensils, Dumbbell, Calendar } from 'lucide-react-native';
 import { colors } from '@/constants/theme';
 
 export default function TabLayout() {
+  const router = useRouter();
+
   return (
     <Tabs
       screenOptions={{
@@ -35,6 +37,14 @@ export default function TabLayout() {
         options={{
           title: 'Fuel',
           tabBarIcon: ({ color, size }) => <Utensils color={color} size={size} />,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            // Prevent default behavior
+            e.preventDefault();
+            // Navigate to the nutrition index, resetting the stack
+            router.replace('/nutrition');
+          },
         }}
       />
       <Tabs.Screen

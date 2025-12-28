@@ -38,23 +38,25 @@ export default function CommandCenterScreen() {
   const weeklyWorkouts = 3;
   const weeklyTarget = 4;
 
-  // Load streak data when screen comes into focus
+  // Load streak data
+  const loadData = useCallback(async () => {
+    try {
+      await initializeDay();
+      const streakData = await getCombinedStreak();
+      setStreakDays(streakData.baseStreak + (streakData.todayComplete ? 1 : 0));
+
+      const stats = await getStatsForRange('2020-01-01', today);
+      setCurrentDay(Math.max(1, stats.length));
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+  }, [initializeDay, getCombinedStreak, getStatsForRange, today]);
+
+  // Reload when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      const loadData = async () => {
-        try {
-          await initializeDay();
-          const streakData = await getCombinedStreak();
-          setStreakDays(streakData.baseStreak + (streakData.todayComplete ? 1 : 0));
-
-          const stats = await getStatsForRange('2020-01-01', today);
-          setCurrentDay(Math.max(1, stats.length));
-        } catch (error) {
-          console.error('Error loading data:', error);
-        }
-      };
       loadData();
-    }, [initializeDay, getCombinedStreak, getStatsForRange, today])
+    }, [loadData])
   );
 
   return (
@@ -101,7 +103,7 @@ export default function CommandCenterScreen() {
         </View>
 
         {/* Daily Stack - Supplements */}
-        <SupplementsCard date={today} />
+        <SupplementsCard date={today} onUpdate={loadData} />
 
         {/* Workout */}
         <WorkoutCard

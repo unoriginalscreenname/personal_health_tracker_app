@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Timer } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useFastingState } from '@/hooks/useFastingState';
@@ -23,16 +24,18 @@ export function FastingCard({ date }: FastingCardProps) {
 
   const isLive = isToday(date);
 
-  // Load historical data for past dates
-  useEffect(() => {
-    if (!isLive) {
-      const load = async () => {
-        const stats = await getStatsForRange(date, date);
-        setHistoricalCompliant(stats[0]?.fasting_compliant === 1 ? true : stats[0]?.fasting_compliant === 0 ? false : null);
-      };
-      load();
-    }
-  }, [date, isLive, getStatsForRange]);
+  // Load historical data for past dates when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!isLive) {
+        const load = async () => {
+          const stats = await getStatsForRange(date, date);
+          setHistoricalCompliant(stats[0]?.fasting_compliant === 1 ? true : stats[0]?.fasting_compliant === 0 ? false : null);
+        };
+        load();
+      }
+    }, [date, isLive, getStatsForRange])
+  );
 
   // For today, show live timer
   if (isLive) {

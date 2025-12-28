@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Target } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useMealEntries } from '@/db';
@@ -16,13 +17,15 @@ export function NutritionCard({ date, variant = 'full', onPress }: NutritionCard
   const { getTotalsForDate } = useMealEntries();
   const [totals, setTotals] = useState({ protein: 0, calories: 0 });
 
-  useEffect(() => {
-    const load = async () => {
-      const data = await getTotalsForDate(date);
-      setTotals(data);
-    };
-    load();
-  }, [date, getTotalsForDate]);
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        const data = await getTotalsForDate(date);
+        setTotals(data);
+      };
+      load();
+    }, [date, getTotalsForDate])
+  );
 
   const progressPercent = Math.min((totals.protein / TARGET_PROTEIN) * 100, 100);
 

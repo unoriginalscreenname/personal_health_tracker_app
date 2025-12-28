@@ -309,6 +309,33 @@ function getTimeUntilWindowChange(): number {
 
 ## React Hooks Best Practices
 
+### useFocusEffect vs useEffect (IMPORTANT)
+
+In React Native with stack navigation, **screens are not unmounted** when you navigate away - they stay in the stack. This means `useEffect` only runs once when the component first mounts, NOT when you navigate back to it.
+
+**Use `useFocusEffect` when you need data to reload on navigation back:**
+
+```typescript
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+
+// ❌ WRONG - Data won't reload when navigating back
+useEffect(() => {
+  loadData();
+}, []);
+
+// ✅ CORRECT - Data reloads every time screen comes into focus
+useFocusEffect(
+  useCallback(() => {
+    loadData();
+  }, [loadData])
+);
+```
+
+**When to use which:**
+- `useEffect` - One-time setup, subscriptions, timers
+- `useFocusEffect` - Loading data that might change while on other screens
+
 ### useEffect Cleanup Pattern
 ```typescript
 useEffect(() => {

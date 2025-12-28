@@ -88,9 +88,12 @@ export default function MealDetailScreen() {
         <PenLine color={colors.text.primary} size={24} />
         <Text style={styles.title}>Log Food</Text>
         {addedFoods.size > 0 && (
-          <View style={styles.addedBadge}>
-            <Text style={styles.addedBadgeText}>{addedFoods.size} added</Text>
-          </View>
+          <Pressable
+            style={({ pressed }) => [styles.addedBadge, pressed && styles.addedBadgePressed]}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.addedBadgeText}>{addedFoods.size} added ✓</Text>
+          </Pressable>
         )}
       </View>
 
@@ -176,6 +179,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
+  },
+  addedBadgePressed: {
+    opacity: 0.7,
   },
   addedBadgeText: {
     fontSize: fontSize.xs,

@@ -1,11 +1,13 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Check, Circle, Droplets } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useSupplements, type SupplementWithValue } from '@/db';
 
 interface SupplementsCardProps {
   date: string;
+  onUpdate?: () => void;
 }
 
 const WaterDot = ({
@@ -27,25 +29,28 @@ const WaterDot = ({
   />
 );
 
-export function SupplementsCard({ date }: SupplementsCardProps) {
+export function SupplementsCard({ date, onUpdate }: SupplementsCardProps) {
   const { getSupplementsForDate, toggleSupplement, setSupplementValue } = useSupplements();
   const [supplements, setSupplements] = useState<SupplementWithValue[]>([]);
 
-  // Load supplements when date changes
-  useEffect(() => {
-    const load = async () => {
-      const data = await getSupplementsForDate(date);
-      setSupplements(data);
-    };
-    load();
-  }, [date, getSupplementsForDate]);
+  // Load supplements when screen comes into focus or date changes
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        const data = await getSupplementsForDate(date);
+        setSupplements(data);
+      };
+      load();
+    }, [date, getSupplementsForDate])
+  );
 
   // Handle pill supplement tap
   const handleSupplementPress = useCallback(async (supp: SupplementWithValue) => {
     await toggleSupplement(supp.id, date);
     const updated = await getSupplementsForDate(date);
     setSupplements(updated);
-  }, [date, toggleSupplement, getSupplementsForDate]);
+    onUpdate?.();
+  }, [date, toggleSupplement, getSupplementsForDate, onUpdate]);
 
   // Handle water dot tap
   const handleWaterDotPress = useCallback(async (supp: SupplementWithValue, dotIndex: number) => {
@@ -54,7 +59,8 @@ export function SupplementsCard({ date }: SupplementsCardProps) {
     await setSupplementValue(supp.id, date, newValue);
     const updated = await getSupplementsForDate(date);
     setSupplements(updated);
-  }, [date, setSupplementValue, getSupplementsForDate]);
+    onUpdate?.();
+  }, [date, setSupplementValue, getSupplementsForDate, onUpdate]);
 
   const pillSupplements = supplements.filter(s => s.target === 1);
   const waterSupplement = supplements.find(s => s.name === 'Water');

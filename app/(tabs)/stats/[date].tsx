@@ -17,12 +17,12 @@ import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import {
   useMealEntries,
   useDailyStats,
-  type MealEntry,
   type DailyStats,
 } from '@/db';
 
 import { NutritionCard } from '@/components/app/NutritionCard';
 import { SupplementsCard } from '@/components/app/SupplementsCard';
+import { FoodTimeline } from '@/components/app/FoodTimeline';
 
 // Helper to format Date to YYYY-MM-DD in local timezone
 function formatDateLocal(d: Date): string {
@@ -39,16 +39,6 @@ function formatDateDisplay(dateString: string): string {
   });
 }
 
-// Format ISO timestamp to display time (e.g., "12:15 PM")
-function formatTime(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-}
-
 // Check if date is today (using local timezone)
 function isToday(dateString: string): boolean {
   return dateString === formatDateLocal(new Date());
@@ -60,7 +50,6 @@ export default function DayDetailScreen() {
 
   // State
   const [currentDate, setCurrentDate] = useState(initialDate);
-  const [entries, setEntries] = useState<MealEntry[]>([]);
   const [dayStats, setDayStats] = useState<DailyStats | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -70,19 +59,15 @@ export default function DayDetailScreen() {
   const [isChangingDate, setIsChangingDate] = useState(false);
 
   // Database hooks
-  const { getEntriesForDate, createEntry } = useMealEntries();
+  const { createEntry } = useMealEntries();
   const { hasDataForDate, moveDateData, getStatsForRange, deleteDate } = useDailyStats();
 
-  // Load page-specific data (entries for timeline, stats for section headers)
+  // Load page-specific data (stats for section headers)
   const loadData = useCallback(async () => {
     if (!currentDate) return;
-    const [entriesData, statsData] = await Promise.all([
-      getEntriesForDate(currentDate),
-      getStatsForRange(currentDate, currentDate),
-    ]);
-    setEntries(entriesData);
+    const statsData = await getStatsForRange(currentDate, currentDate);
     setDayStats(statsData[0] ?? null);
-  }, [currentDate, getEntriesForDate, getStatsForRange]);
+  }, [currentDate, getStatsForRange]);
 
   useFocusEffect(
     useCallback(() => {
@@ -248,38 +233,7 @@ export default function DayDetailScreen() {
         </Pressable>
 
         {/* Food Timeline */}
-        {entries.length > 0 && (
-          <View style={styles.timeline}>
-            {entries.map((entry) => (
-              <Pressable
-                key={entry.id}
-                style={({ pressed }) => [styles.timelineEntry, pressed && styles.timelineEntryPressed]}
-                onPress={() => router.push(`/nutrition/entry/${entry.id}`)}
-              >
-                <View style={styles.timelineLeft}>
-                  <Text style={styles.timelineTime}>{formatTime(entry.logged_at)}</Text>
-                  <View style={styles.timelineLine} />
-                </View>
-                <View style={styles.timelineContent}>
-                  <View style={styles.foodItems}>
-                    {entry.items.map((item) => (
-                      <View key={item.id} style={styles.foodChip}>
-                        <Text style={styles.foodName}>{item.name}</Text>
-                        <Text style={styles.foodProtein}>{Math.round(item.protein * item.quantity)}g</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        {entries.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No food logged</Text>
-          </View>
-        )}
+        <FoodTimeline date={currentDate} />
 
         {/* Supplements Section */}
         <View style={styles.supplementsSection}>
@@ -300,7 +254,7 @@ export default function DayDetailScreen() {
               </View>
             )}
           </View>
-          <SupplementsCard date={currentDate} />
+          <SupplementsCard date={currentDate} onUpdate={loadData} />
         </View>
 
         {/* Delete Date Button */}
@@ -530,71 +484,6 @@ const styles = StyleSheet.create({
   logButtonText: {
     fontSize: fontSize.sm,
     color: colors.text.secondary,
-  },
-
-  // Timeline
-  timeline: {
-    marginBottom: spacing.lg,
-  },
-  timelineEntry: {
-    flexDirection: 'row',
-    marginBottom: spacing.md,
-  },
-  timelineEntryPressed: {
-    opacity: 0.7,
-  },
-  timelineLeft: {
-    width: 80,
-    alignItems: 'flex-end',
-    paddingRight: spacing.md,
-  },
-  timelineTime: {
-    fontSize: fontSize.xs,
-    color: colors.text.dim,
-    marginBottom: spacing.xs,
-  },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: colors.background.tertiary,
-    marginTop: spacing.xs,
-  },
-  timelineContent: {
-    flex: 1,
-    paddingBottom: spacing.md,
-  },
-  foodItems: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  foodChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.secondary,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.sm,
-    gap: spacing.xs,
-  },
-  foodName: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-  },
-  foodProtein: {
-    fontSize: fontSize.xs,
-    color: colors.accent.green,
-    fontWeight: '600',
-  },
-
-  // Empty state
-  emptyState: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: fontSize.sm,
-    color: colors.text.dim,
   },
 
   // Section Headers
