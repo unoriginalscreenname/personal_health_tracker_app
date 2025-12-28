@@ -12,6 +12,7 @@ import {
   Circle,
   Droplets,
   X,
+  Trash2,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import {
@@ -116,7 +117,7 @@ export default function DayDetailScreen() {
   // Database hooks
   const { getEntriesForDate, getTotalsForDate, createEntry } = useMealEntries();
   const { getSupplementsForDate, toggleSupplement, setSupplementValue } = useSupplements();
-  const { hasDataForDate, moveDateData, getStatsForRange } = useDailyStats();
+  const { hasDataForDate, moveDateData, getStatsForRange, deleteDate } = useDailyStats();
 
   // Load data when screen comes into focus or date changes
   const loadData = useCallback(async () => {
@@ -219,6 +220,25 @@ export default function DayDetailScreen() {
     const updated = await getSupplementsForDate(currentDate);
     setSupplements(updated);
   }, [currentDate, setSupplementValue, getSupplementsForDate]);
+
+  // Handle delete date
+  const handleDeleteDate = useCallback(() => {
+    Alert.alert(
+      'Delete Date',
+      `Delete all data for ${formatDateDisplay(currentDate)}? This includes meals, supplements, workouts, and stats. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteDate(currentDate);
+            router.back();
+          },
+        },
+      ]
+    );
+  }, [currentDate, deleteDate, router]);
 
   // Separate water from other supplements
   const pillSupplements = supplements.filter(s => s.target === 1);
@@ -425,6 +445,15 @@ export default function DayDetailScreen() {
             )}
           </View>
         </View>
+
+        {/* Delete Date Button */}
+        <Pressable
+          style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
+          onPress={handleDeleteDate}
+        >
+          <Trash2 color={colors.accent.red} size={16} />
+          <Text style={styles.deleteButtonText}>Delete Date</Text>
+        </Pressable>
       </ScrollView>
 
       {/* Date Picker Modal */}
@@ -969,5 +998,27 @@ const styles = StyleSheet.create({
     color: colors.accent.red,
     textAlign: 'center',
     marginTop: spacing.sm,
+  },
+
+  // Delete Button
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.accent.red + '40',
+    borderRadius: borderRadius.md,
+  },
+  deleteButtonPressed: {
+    opacity: 0.7,
+    backgroundColor: colors.accent.red + '10',
+  },
+  deleteButtonText: {
+    fontSize: fontSize.sm,
+    color: colors.accent.red,
   },
 });

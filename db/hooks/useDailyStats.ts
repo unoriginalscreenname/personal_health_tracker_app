@@ -307,6 +307,17 @@ export function useDailyStats() {
     await db.runAsync('UPDATE daily_stats SET date = ? WHERE date = ?', [toDate, fromDate]);
   }, [db, hasDataForDate]);
 
+  // Delete all data for a specific date
+  // Removes: meal_entries (cascade deletes meal_entry_items), supplement_logs,
+  // boxing_sessions, weight_sessions (cascade deletes weight_exercise_logs), daily_stats
+  const deleteDate = useCallback(async (date: string): Promise<void> => {
+    await db.runAsync('DELETE FROM meal_entries WHERE date = ?', [date]);
+    await db.runAsync('DELETE FROM supplement_logs WHERE date = ?', [date]);
+    await db.runAsync('DELETE FROM boxing_sessions WHERE date = ?', [date]);
+    await db.runAsync('DELETE FROM weight_sessions WHERE date = ?', [date]);
+    await db.runAsync('DELETE FROM daily_stats WHERE date = ?', [date]);
+  }, [db]);
+
   return {
     getToday,
     initializeDay,
@@ -318,5 +329,6 @@ export function useDailyStats() {
     getTodayStats,
     hasDataForDate,
     moveDateData,
+    deleteDate,
   };
 }
