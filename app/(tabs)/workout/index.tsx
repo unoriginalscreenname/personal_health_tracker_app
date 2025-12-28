@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { Dumbbell, CircleDot, Check, ChevronRight, Minus, Plus } from 'lucide-react-native';
+import { Dumbbell, CircleDot, Check, ChevronRight, Circle } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import {
   useWorkouts,
@@ -18,9 +18,6 @@ export default function WorkoutScreen() {
     getToday,
     formatTimeLocal,
     getBoxingSessionForDate,
-    createBoxingSession,
-    completeBoxingSession,
-    updateBoxingDuration,
     getWeightSessionForDate,
     getLastWeightSession,
     createWeightSession,
@@ -30,7 +27,6 @@ export default function WorkoutScreen() {
   const [boxingSession, setBoxingSession] = useState<BoxingSession | null>(null);
   const [weightSession, setWeightSession] = useState<WeightSession | null>(null);
   const [lastWeightInfo, setLastWeightInfo] = useState<LastWeightSessionInfo | null>(null);
-  const [boxingDuration, setBoxingDuration] = useState(15);
 
   const loadData = useCallback(async () => {
     const today = getToday();
@@ -42,9 +38,6 @@ export default function WorkoutScreen() {
     setBoxingSession(boxing);
     setWeightSession(weights);
     setLastWeightInfo(lastWeight);
-    if (boxing) {
-      setBoxingDuration(boxing.duration_minutes);
-    }
     setLoading(false);
   }, [getToday, getBoxingSessionForDate, getWeightSessionForDate, getLastWeightSession]);
 
@@ -54,46 +47,22 @@ export default function WorkoutScreen() {
     }, [loadData])
   );
 
-  // Boxing handlers
-  const handleStartBoxing = useCallback(async () => {
-    const id = await createBoxingSession(boxingDuration);
-    const today = getToday();
-    const session = await getBoxingSessionForDate(today);
-    setBoxingSession(session);
-  }, [createBoxingSession, boxingDuration, getToday, getBoxingSessionForDate]);
+  const handleBoxingPress = useCallback(() => {
+    router.push('/(tabs)/workout/boxing' as any);
+  }, [router]);
 
-  const handleCompleteBoxing = useCallback(async () => {
-    if (!boxingSession) return;
-    await updateBoxingDuration(boxingSession.id, boxingDuration);
-    await completeBoxingSession(boxingSession.id);
-    const today = getToday();
-    const session = await getBoxingSessionForDate(today);
-    setBoxingSession(session);
-  }, [boxingSession, boxingDuration, updateBoxingDuration, completeBoxingSession, getToday, getBoxingSessionForDate]);
-
-  const handleBoxingDurationChange = useCallback(async (delta: number) => {
-    const newDuration = Math.max(5, Math.min(60, boxingDuration + delta));
-    setBoxingDuration(newDuration);
-    if (boxingSession) {
-      await updateBoxingDuration(boxingSession.id, newDuration);
-    }
-  }, [boxingDuration, boxingSession, updateBoxingDuration]);
-
-  // Weights handlers
   const handleStartWeights = useCallback(async (type: 'a' | 'b') => {
     await createWeightSession(type);
     const today = getToday();
     const session = await getWeightSessionForDate(today);
     setWeightSession(session);
-    // Navigate to weights session screen
     router.push('/(tabs)/workout/weights' as any);
   }, [createWeightSession, getToday, getWeightSessionForDate, router]);
 
-  const handleContinueWeights = useCallback(() => {
+  const handleWeightsPress = useCallback(() => {
     router.push('/(tabs)/workout/weights' as any);
   }, [router]);
 
-  // Suggest next session type
   const suggestedType = lastWeightInfo
     ? (lastWeightInfo.type === 'a' ? 'b' : 'a')
     : 'a';
@@ -122,75 +91,49 @@ export default function WorkoutScreen() {
           <Text style={styles.sectionTitle}>Boxing</Text>
 
           {!boxingSession ? (
-            // No session - show start button
             <Pressable
-              style={({ pressed }) => [
-                styles.startButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={handleStartBoxing}
+              style={({ pressed }) => [styles.startButton, pressed && styles.buttonPressed]}
+              onPress={handleBoxingPress}
             >
               <CircleDot color={colors.accent.orange} size={20} />
               <Text style={styles.startButtonText}>Start Boxing Session</Text>
             </Pressable>
-          ) : !boxingSession.completed_at ? (
-            // In progress - show duration picker and complete button
-            <View style={styles.card}>
-              <View style={styles.durationRow}>
-                <Text style={styles.durationLabel}>Duration</Text>
-                <View style={styles.durationControls}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.durationButton,
-                      pressed && styles.buttonPressed,
-                    ]}
-                    onPress={() => handleBoxingDurationChange(-5)}
-                  >
-                    <Minus color={colors.text.primary} size={18} />
-                  </Pressable>
-                  <Text style={styles.durationValue}>{boxingDuration} min</Text>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.durationButton,
-                      pressed && styles.buttonPressed,
-                    ]}
-                    onPress={() => handleBoxingDurationChange(5)}
-                  >
-                    <Plus color={colors.text.primary} size={18} />
-                  </Pressable>
-                </View>
-              </View>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.completeButton,
-                  pressed && styles.buttonPressed,
-                ]}
-                onPress={handleCompleteBoxing}
-              >
-                <Check color={colors.background.primary} size={18} />
-                <Text style={styles.completeButtonText}>Complete Session</Text>
-              </Pressable>
-            </View>
           ) : (
-            // Completed - show summary
             <Pressable
               style={({ pressed }) => [
-                styles.completedCard,
+                styles.summaryCard,
+                boxingSession.completed_at && styles.summaryCardComplete,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={() => {
-                // Allow editing by resetting completed_at
-                // For now, just show the info
-              }}
+              onPress={handleBoxingPress}
             >
-              <View style={styles.completedInfo}>
-                <Check color={colors.accent.green} size={20} />
-                <Text style={styles.completedText}>
-                  {boxingSession.duration_minutes} min
-                </Text>
-                <Text style={styles.completedTime}>
-                  @ {formatTimeLocal(boxingSession.completed_at!)}
-                </Text>
+              <View style={styles.summaryHeader}>
+                <View style={[
+                  styles.checkCircle,
+                  boxingSession.completed_at && styles.checkCircleActive,
+                ]}>
+                  {boxingSession.completed_at ? (
+                    <Check color={colors.background.primary} size={16} strokeWidth={3} />
+                  ) : (
+                    <CircleDot color={colors.text.dim} size={16} />
+                  )}
+                </View>
+                <View style={styles.summaryInfo}>
+                  <Text style={[
+                    styles.summaryTitle,
+                    boxingSession.completed_at && styles.summaryTitleComplete,
+                  ]}>
+                    {boxingSession.duration_minutes} min
+                  </Text>
+                  {boxingSession.completed_at ? (
+                    <Text style={styles.summaryTime}>
+                      {formatTimeLocal(boxingSession.completed_at)}
+                    </Text>
+                  ) : (
+                    <Text style={styles.summarySubtext}>In Progress</Text>
+                  )}
+                </View>
+                <ChevronRight color={colors.text.dim} size={20} />
               </View>
             </Pressable>
           )}
@@ -201,7 +144,6 @@ export default function WorkoutScreen() {
           <Text style={styles.sectionTitle}>Weights (5x5)</Text>
 
           {!weightSession ? (
-            // No session today
             <View>
               {lastWeightInfo ? (
                 <Text style={styles.lastSessionText}>
@@ -251,42 +193,91 @@ export default function WorkoutScreen() {
                 </Pressable>
               </View>
             </View>
-          ) : (
-            // Session exists - show summary and continue button
-            <Pressable
-              style={({ pressed }) => [
-                weightSession.completed_at ? styles.completedCard : styles.inProgressCard,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={handleContinueWeights}
-            >
-              <View style={styles.weightSessionInfo}>
-                <View style={styles.sessionBadge}>
-                  <Text style={styles.sessionBadgeText}>
-                    {weightSession.session_type.toUpperCase()}
-                  </Text>
+          ) : (() => {
+            const exercisesDone = weightSession.exercises.filter(
+              e => e.sets_completed >= e.sets_target
+            ).length;
+            const allComplete = exercisesDone === weightSession.exercises.length;
+
+            return (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.summaryCard,
+                  allComplete && styles.summaryCardComplete,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={handleWeightsPress}
+              >
+                {/* Header row */}
+                <View style={styles.summaryHeader}>
+                  <View style={[
+                    styles.checkCircle,
+                    allComplete && styles.checkCircleActive,
+                  ]}>
+                    {allComplete ? (
+                      <Check color={colors.background.primary} size={16} strokeWidth={3} />
+                    ) : (
+                      <Dumbbell color={colors.text.dim} size={16} />
+                    )}
+                  </View>
+                  <View style={styles.sessionBadge}>
+                    <Text style={styles.sessionBadgeText}>
+                      {weightSession.session_type.toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryInfo}>
+                    <Text style={[
+                      styles.summaryTitle,
+                      allComplete && styles.summaryTitleComplete,
+                    ]}>
+                      {exercisesDone}/{weightSession.exercises.length} done
+                    </Text>
+                    {weightSession.completed_at ? (
+                      <Text style={styles.summaryTime}>
+                        {formatTimeLocal(weightSession.completed_at)}
+                      </Text>
+                    ) : (
+                      <Text style={styles.summarySubtext}>In Progress</Text>
+                    )}
+                  </View>
+                  <ChevronRight color={colors.text.dim} size={20} />
                 </View>
-                <View style={styles.sessionSummary}>
-                  {weightSession.completed_at ? (
-                    <>
-                      <View style={styles.completedInfo}>
-                        <Check color={colors.accent.green} size={18} />
-                        <Text style={styles.completedText}>
-                          {weightSession.exercises.filter(e => e.sets_completed > 0).length}/{weightSession.exercises.length} exercises
+
+                {/* Exercise details */}
+                <View style={styles.exerciseList}>
+                  {weightSession.exercises.map((exercise) => {
+                    const isDone = exercise.sets_completed >= exercise.sets_target;
+                    return (
+                      <View key={exercise.id} style={styles.exerciseRow}>
+                        <View style={[
+                          styles.exerciseCheck,
+                          isDone && styles.exerciseCheckActive,
+                        ]}>
+                          {isDone ? (
+                            <Check color={colors.background.primary} size={12} strokeWidth={3} />
+                          ) : (
+                            <Circle color={colors.text.dim} size={12} />
+                          )}
+                        </View>
+                        <Text style={[
+                          styles.exerciseName,
+                          isDone && styles.exerciseNameComplete,
+                        ]}>
+                          {exercise.display_name}
+                        </Text>
+                        <Text style={styles.exerciseDetail}>
+                          {exercise.weight} lbs
+                        </Text>
+                        <Text style={styles.exerciseDetail}>
+                          {exercise.sets_completed}/{exercise.sets_target}
                         </Text>
                       </View>
-                      <Text style={styles.completedTime}>
-                        @ {formatTimeLocal(weightSession.completed_at)}
-                      </Text>
-                    </>
-                  ) : (
-                    <Text style={styles.inProgressText}>In Progress</Text>
-                  )}
+                    );
+                  })}
                 </View>
-                <ChevronRight color={colors.text.muted} size={20} />
-              </View>
-            </Pressable>
-          )}
+              </Pressable>
+            );
+          })()}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -335,7 +326,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: spacing.sm,
   },
-  // Start button (dashed border style)
+  // Start button
   startButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -352,89 +343,102 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.accent.orange,
   },
-  // Card styles
-  card: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-  },
-  completedCard: {
+  // Summary card
+  summaryCard: {
     backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent.green,
   },
-  inProgressCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent.orange,
+  summaryCardComplete: {
+    backgroundColor: colors.accent.green + '15',
   },
-  // Duration controls
-  durationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  durationLabel: {
-    fontSize: fontSize.md,
-    color: colors.text.secondary,
-  },
-  durationControls: {
+  summaryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
   },
-  durationButton: {
-    width: 36,
-    height: 36,
+  summaryInfo: {
+    flex: 1,
+  },
+  summaryTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '500',
+    color: colors.text.primary,
+  },
+  summaryTitleComplete: {
+    color: colors.accent.green,
+  },
+  summaryTime: {
+    fontSize: fontSize.xs,
+    color: colors.text.muted,
+  },
+  summarySubtext: {
+    fontSize: fontSize.xs,
+    color: colors.accent.orange,
+  },
+  // Check circle
+  checkCircle: {
+    width: 28,
+    height: 28,
     borderRadius: borderRadius.full,
     backgroundColor: colors.background.tertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  durationValue: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.text.primary,
-    minWidth: 60,
-    textAlign: 'center',
-  },
-  // Complete button
-  completeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
+  checkCircleActive: {
     backgroundColor: colors.accent.green,
   },
-  completeButtonText: {
-    fontSize: fontSize.md,
-    fontWeight: '600',
-    color: colors.background.primary,
+  // Session badge
+  sessionBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.accent.blue + '20',
   },
-  // Completed state
-  completedInfo: {
+  sessionBadgeText: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: colors.accent.blue,
+  },
+  // Exercise list (inside summary card)
+  exerciseList: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.primary,
+  },
+  exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    paddingVertical: spacing.xs,
   },
-  completedText: {
-    fontSize: fontSize.md,
-    fontWeight: '500',
-    color: colors.text.primary,
+  exerciseCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.background.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  completedTime: {
+  exerciseCheckActive: {
+    backgroundColor: colors.accent.green,
+  },
+  exerciseName: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+  },
+  exerciseNameComplete: {
+    color: colors.accent.green,
+  },
+  exerciseDetail: {
     fontSize: fontSize.sm,
     color: colors.text.muted,
-    marginLeft: spacing.sm,
+    minWidth: 50,
+    textAlign: 'right',
   },
-  // Weights section
+  // Session buttons (A/B selection)
   lastSessionText: {
     fontSize: fontSize.sm,
     color: colors.text.muted,
@@ -468,31 +472,6 @@ const styles = StyleSheet.create({
   sessionButtonSubtext: {
     fontSize: fontSize.xs,
     color: colors.text.muted,
-  },
-  // Weight session card
-  weightSessionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  sessionBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.accent.blue + '20',
-  },
-  sessionBadgeText: {
-    fontSize: fontSize.sm,
-    fontWeight: '700',
-    color: colors.accent.blue,
-  },
-  sessionSummary: {
-    flex: 1,
-  },
-  inProgressText: {
-    fontSize: fontSize.md,
-    color: colors.accent.orange,
-    fontWeight: '500',
   },
   // Pressed state
   buttonPressed: {

@@ -11,6 +11,7 @@ export default function WorkoutLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="boxing" />
       <Stack.Screen name="weights" />
     </Stack>
   );

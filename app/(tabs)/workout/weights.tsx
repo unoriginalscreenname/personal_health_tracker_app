@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, Minus, Plus, Check } from 'lucide-react-native';
+import { ChevronLeft, Check, Circle, Trash2 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useWorkouts, type WeightSession, type ExerciseLog } from '@/db';
 
@@ -14,11 +14,17 @@ export default function WeightsSessionScreen() {
     getWeightSessionForDate,
     updateExerciseLog,
     completeWeightSession,
+    deleteWeightSession,
   } = useWorkouts();
 
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WeightSession | null>(null);
   const [exercises, setExercises] = useState<ExerciseLog[]>([]);
+
+  // Modal state
+  const [editingExercise, setEditingExercise] = useState<ExerciseLog | null>(null);
+  const [editingField, setEditingField] = useState<'weight' | 'sets' | null>(null);
+  const [tempValue, setTempValue] = useState('');
 
   const loadData = useCallback(async () => {
     const today = getToday();
@@ -36,49 +42,83 @@ export default function WeightsSessionScreen() {
     }, [loadData])
   );
 
-  const handleWeightChange = useCallback(async (logId: number, delta: number) => {
-    setExercises(prev => prev.map(ex => {
-      if (ex.id === logId) {
-        const newWeight = Math.max(0, ex.weight + delta);
-        // Update in background
-        updateExerciseLog(logId, newWeight, ex.sets_completed);
-        return { ...ex, weight: newWeight };
-      }
-      return ex;
-    }));
+  const handleOpenWeightModal = useCallback((exercise: ExerciseLog) => {
+    setEditingExercise(exercise);
+    setEditingField('weight');
+    setTempValue(String(exercise.weight));
+  }, []);
+
+  const handleOpenSetsModal = useCallback((exercise: ExerciseLog) => {
+    setEditingExercise(exercise);
+    setEditingField('sets');
+    setTempValue(String(exercise.sets_completed));
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setEditingExercise(null);
+    setEditingField(null);
+    setTempValue('');
+  }, []);
+
+  const handleSaveModal = useCallback(async () => {
+    if (!editingExercise || !editingField) return;
+
+    const numValue = parseInt(tempValue) || 0;
+
+    if (editingField === 'weight') {
+      const newWeight = Math.max(0, numValue);
+      await updateExerciseLog(editingExercise.id, newWeight, editingExercise.sets_completed);
+      setExercises(prev => prev.map(ex =>
+        ex.id === editingExercise.id ? { ...ex, weight: newWeight } : ex
+      ));
+    } else {
+      const newSets = Math.max(0, Math.min(editingExercise.sets_target, numValue));
+      await updateExerciseLog(editingExercise.id, editingExercise.weight, newSets);
+      setExercises(prev => prev.map(ex =>
+        ex.id === editingExercise.id ? { ...ex, sets_completed: newSets } : ex
+      ));
+    }
+
+    handleCloseModal();
+  }, [editingExercise, editingField, tempValue, updateExerciseLog, handleCloseModal]);
+
+  const handleToggleComplete = useCallback(async (exercise: ExerciseLog) => {
+    const newSets = exercise.sets_completed >= exercise.sets_target ? 0 : exercise.sets_target;
+    await updateExerciseLog(exercise.id, exercise.weight, newSets);
+    setExercises(prev => prev.map(ex =>
+      ex.id === exercise.id ? { ...ex, sets_completed: newSets } : ex
+    ));
   }, [updateExerciseLog]);
 
-  const handleSetToggle = useCallback(async (logId: number, currentSets: number) => {
-    setExercises(prev => prev.map(ex => {
-      if (ex.id === logId) {
-        // Cycle: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 0
-        const newSets = currentSets >= ex.sets_target ? 0 : currentSets + 1;
-        // Update in background
-        updateExerciseLog(logId, ex.weight, newSets);
-        return { ...ex, sets_completed: newSets };
-      }
-      return ex;
-    }));
-  }, [updateExerciseLog]);
-
-  const handleSetDirect = useCallback(async (logId: number, setNumber: number) => {
-    setExercises(prev => prev.map(ex => {
-      if (ex.id === logId) {
-        // If clicking on a filled set, set to that number
-        // If clicking on an empty set, fill up to that number
-        const newSets = setNumber;
-        updateExerciseLog(logId, ex.weight, newSets);
-        return { ...ex, sets_completed: newSets };
-      }
-      return ex;
-    }));
-  }, [updateExerciseLog]);
-
-  const handleSaveSession = useCallback(async () => {
+  const handleDone = useCallback(async () => {
     if (!session) return;
-    await completeWeightSession(session.id);
+    // Mark session complete if all exercises are done
+    const allDone = exercises.every(ex => ex.sets_completed >= ex.sets_target);
+    if (allDone) {
+      await completeWeightSession(session.id);
+    }
     router.back();
-  }, [session, completeWeightSession, router]);
+  }, [session, exercises, completeWeightSession, router]);
+
+  const handleDeleteSession = useCallback(() => {
+    if (!session) return;
+
+    Alert.alert(
+      'Delete Session',
+      'Delete this workout session?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteWeightSession(session.id);
+            router.back();
+          },
+        },
+      ]
+    );
+  }, [session, deleteWeightSession, router]);
 
   const handleBack = useCallback(() => {
     router.back();
@@ -107,124 +147,137 @@ export default function WeightsSessionScreen() {
     );
   }
 
-  const isCompleted = !!session.completed_at;
-  const allComplete = exercises.every(ex => ex.sets_completed >= ex.sets_target);
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed && styles.buttonPressed,
-          ]}
+          style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
           onPress={handleBack}
         >
           <ChevronLeft color={colors.text.primary} size={24} />
         </Pressable>
-        <View style={styles.headerTitle}>
+        <View style={styles.headerCenter}>
           <View style={styles.sessionBadge}>
             <Text style={styles.sessionBadgeText}>
               {session.session_type.toUpperCase()}
             </Text>
           </View>
-          <Text style={styles.title}>
-            Session {session.session_type.toUpperCase()}
-          </Text>
         </View>
-        <View style={styles.headerSpacer} />
+        <Pressable
+          style={({ pressed }) => [styles.deleteButton, pressed && styles.buttonPressed]}
+          onPress={handleDeleteSession}
+        >
+          <Trash2 color={colors.text.muted} size={20} />
+        </Pressable>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        {/* Exercise List */}
-        {exercises.map((exercise) => (
-          <View key={exercise.id} style={styles.exerciseCard}>
-            <View style={styles.exerciseHeader}>
-              <Text style={styles.exerciseName}>{exercise.display_name}</Text>
-              {exercise.sets_completed >= exercise.sets_target && (
-                <Check color={colors.accent.green} size={20} />
-              )}
-            </View>
+        {exercises.map((exercise) => {
+          const isComplete = exercise.sets_completed >= exercise.sets_target;
 
-            {/* Weight Control */}
-            <View style={styles.weightRow}>
-              <Text style={styles.weightLabel}>Weight</Text>
-              <View style={styles.weightControls}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.weightButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                  onPress={() => handleWeightChange(exercise.id, -5)}
-                >
-                  <Minus color={colors.text.primary} size={16} />
-                </Pressable>
-                <Text style={styles.weightValue}>{exercise.weight} lbs</Text>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.weightButton,
-                    pressed && styles.buttonPressed,
-                  ]}
-                  onPress={() => handleWeightChange(exercise.id, 5)}
-                >
-                  <Plus color={colors.text.primary} size={16} />
-                </Pressable>
-              </View>
-            </View>
+          return (
+            <View key={exercise.id} style={[
+              styles.exerciseRow,
+              isComplete && styles.exerciseRowComplete,
+            ]}>
+              <Text style={[
+                styles.exerciseName,
+                isComplete && styles.exerciseNameComplete,
+              ]}>
+                {exercise.display_name}
+              </Text>
 
-            {/* Sets */}
-            <View style={styles.setsRow}>
-              <Text style={styles.setsLabel}>Sets</Text>
-              <View style={styles.setsCircles}>
-                {Array.from({ length: exercise.sets_target }).map((_, idx) => {
-                  const setNum = idx + 1;
-                  const isFilled = setNum <= exercise.sets_completed;
-                  return (
-                    <Pressable
-                      key={idx}
-                      style={({ pressed }) => [
-                        styles.setCircle,
-                        isFilled && styles.setCircleFilled,
-                        pressed && styles.buttonPressed,
-                      ]}
-                      onPress={() => handleSetDirect(exercise.id, isFilled ? idx : setNum)}
-                    >
-                      {isFilled ? (
-                        <Check color={colors.background.primary} size={14} />
-                      ) : (
-                        <Text style={styles.setCircleText}>{setNum}</Text>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <Pressable
+                style={({ pressed }) => [styles.valueButton, pressed && styles.buttonPressed]}
+                onPress={() => handleOpenWeightModal(exercise)}
+              >
+                <Text style={styles.valueText}>{exercise.weight}</Text>
+                <Text style={styles.valueUnit}>lbs</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [styles.valueButton, pressed && styles.buttonPressed]}
+                onPress={() => handleOpenSetsModal(exercise)}
+              >
+                <Text style={styles.valueText}>{exercise.sets_completed}</Text>
+                <Text style={styles.valueUnit}>/{exercise.sets_target}</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.checkCircle,
+                  isComplete && styles.checkCircleActive,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={() => handleToggleComplete(exercise)}
+              >
+                {isComplete ? (
+                  <Check color={colors.background.primary} size={16} strokeWidth={3} />
+                ) : (
+                  <Circle color={colors.text.dim} size={16} />
+                )}
+              </Pressable>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
 
-      {/* Save Button */}
-      {!isCompleted && (
-        <View style={styles.footer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.saveButton,
-              allComplete && styles.saveButtonReady,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleSaveSession}
-          >
-            <Check color={allComplete ? colors.background.primary : colors.text.primary} size={20} />
-            <Text style={[
-              styles.saveButtonText,
-              allComplete && styles.saveButtonTextReady,
-            ]}>
-              Save Session
+      {/* Done button */}
+      <View style={styles.footer}>
+        <Pressable
+          style={({ pressed }) => [styles.doneButton, pressed && styles.buttonPressed]}
+          onPress={handleDone}
+        >
+          <Text style={styles.doneButtonText}>Done</Text>
+        </Pressable>
+      </View>
+
+      {/* Edit Modal */}
+      <Modal
+        visible={!!editingExercise && !!editingField}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={handleCloseModal}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {editingField === 'weight' ? 'Weight (lbs)' : 'Sets Completed'}
             </Text>
-          </Pressable>
-        </View>
-      )}
+            <TextInput
+              style={styles.modalInput}
+              value={tempValue}
+              onChangeText={setTempValue}
+              keyboardType="number-pad"
+              selectTextOnFocus
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  styles.modalButtonCancel,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={handleCloseModal}
+              >
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  styles.modalButtonSave,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={handleSaveModal}
+              >
+                <Text style={styles.modalButtonSaveText}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -266,31 +319,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
+  headerCenter: {
     flex: 1,
-    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  headerSpacer: {
-    width: 40,
   },
   sessionBadge: {
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
     backgroundColor: colors.accent.blue + '20',
   },
   sessionBadgeText: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.md,
     fontWeight: '700',
     color: colors.accent.blue,
-  },
-  title: {
-    fontSize: fontSize.lg,
-    fontWeight: '200',
-    color: colors.text.primary,
   },
   // Content
   scrollView: {
@@ -298,86 +347,60 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.md,
-    gap: spacing.md,
   },
-  // Exercise card
-  exerciseCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-  },
-  exerciseHeader: {
+  // Exercise row
+  exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    marginHorizontal: -spacing.sm,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.xs,
+  },
+  exerciseRowComplete: {
+    backgroundColor: colors.accent.green + '15',
   },
   exerciseName: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
+    flex: 1,
+    fontSize: fontSize.md,
+    fontWeight: '500',
     color: colors.text.primary,
   },
-  // Weight row
-  weightRow: {
+  exerciseNameComplete: {
+    color: colors.accent.green,
+  },
+  valueButton: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    alignItems: 'baseline',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginLeft: spacing.sm,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.sm,
   },
-  weightLabel: {
-    fontSize: fontSize.sm,
-    color: colors.text.muted,
-  },
-  weightControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  weightButton: {
-    width: 32,
-    height: 32,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  weightValue: {
+  valueText: {
     fontSize: fontSize.md,
     fontWeight: '600',
     color: colors.text.primary,
-    minWidth: 70,
-    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
-  // Sets row
-  setsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  setsLabel: {
-    fontSize: fontSize.sm,
+  valueUnit: {
+    fontSize: fontSize.xs,
     color: colors.text.muted,
+    marginLeft: 2,
   },
-  setsCircles: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  setCircle: {
-    width: 32,
-    height: 32,
+  checkCircle: {
+    width: 28,
+    height: 28,
     borderRadius: borderRadius.full,
-    borderWidth: 2,
-    borderColor: colors.border.secondary,
+    backgroundColor: colors.background.tertiary,
+    marginLeft: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  setCircleFilled: {
+  checkCircleActive: {
     backgroundColor: colors.accent.green,
-    borderColor: colors.accent.green,
-  },
-  setCircleText: {
-    fontSize: fontSize.sm,
-    color: colors.text.muted,
   },
   // Footer
   footer: {
@@ -385,30 +408,74 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border.primary,
   },
-  saveButton: {
-    flexDirection: 'row',
+  doneButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
   },
-  saveButtonReady: {
-    backgroundColor: colors.accent.green,
-    borderColor: colors.accent.green,
-  },
-  saveButtonText: {
+  doneButtonText: {
     fontSize: fontSize.md,
     fontWeight: '600',
     color: colors.text.primary,
   },
-  saveButtonTextReady: {
-    color: colors.background.primary,
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  // Pressed state
+  modalContent: {
+    width: 280,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+  },
+  modalTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  modalInput: {
+    fontSize: fontSize.xxl,
+    fontWeight: '200',
+    color: colors.text.primary,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: colors.background.tertiary,
+  },
+  modalButtonCancelText: {
+    fontSize: fontSize.md,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
+  modalButtonSave: {
+    backgroundColor: colors.accent.blue,
+  },
+  modalButtonSaveText: {
+    fontSize: fontSize.md,
+    color: colors.background.primary,
+    fontWeight: '600',
+  },
   buttonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
