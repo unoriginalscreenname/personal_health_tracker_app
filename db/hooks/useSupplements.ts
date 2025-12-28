@@ -23,7 +23,7 @@ function formatDateLocal(d: Date): string {
 
 export function useSupplements() {
   const db = useSQLiteContext();
-  const { updateTodayStats } = useDailyStats();
+  const { updateStatsForDate } = useDailyStats();
 
   // Get today's date string in local timezone
   const getToday = useCallback((): string => {
@@ -54,8 +54,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = CASE WHEN value = 0 THEN 1 ELSE 0 END
     `, [supplementId, date]);
-    await updateTodayStats();
-  }, [db, updateTodayStats]);
+    await updateStatsForDate(date);
+  }, [db, updateStatsForDate]);
 
   // Increment a supplement (for target>1 items like water)
   const incrementSupplement = useCallback(async (
@@ -69,8 +69,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = MIN(value + 1, ?)
     `, [supplementId, date, target]);
-    await updateTodayStats();
-  }, [db, updateTodayStats]);
+    await updateStatsForDate(date);
+  }, [db, updateStatsForDate]);
 
   // Decrement a supplement (for target>1 items)
   const decrementSupplement = useCallback(async (
@@ -83,8 +83,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = MAX(value - 1, 0)
     `, [supplementId, date]);
-    await updateTodayStats();
-  }, [db, updateTodayStats]);
+    await updateStatsForDate(date);
+  }, [db, updateStatsForDate]);
 
   // Set a specific value for a supplement
   const setSupplementValue = useCallback(async (
@@ -98,8 +98,8 @@ export function useSupplements() {
       ON CONFLICT(supplement_id, date)
       DO UPDATE SET value = ?
     `, [supplementId, date, value, value]);
-    await updateTodayStats();
-  }, [db, updateTodayStats]);
+    await updateStatsForDate(date);
+  }, [db, updateStatsForDate]);
 
   // Check if all supplements are at target for a date
   const isDateComplete = useCallback(async (date: string): Promise<boolean> => {

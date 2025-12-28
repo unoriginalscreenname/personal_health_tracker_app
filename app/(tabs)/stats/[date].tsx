@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,6 +11,7 @@ import {
   Check,
   Circle,
   Droplets,
+  X,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import {
@@ -19,6 +20,7 @@ import {
   useDailyStats,
   type MealEntry,
   type SupplementWithValue,
+  type DailyStats,
 } from '@/db';
 
 const TARGET_PROTEIN = 160;
@@ -101,34 +103,56 @@ export default function DayDetailScreen() {
   const [entries, setEntries] = useState<MealEntry[]>([]);
   const [totals, setTotals] = useState({ protein: 0, calories: 0 });
   const [supplements, setSupplements] = useState<SupplementWithValue[]>([]);
+  const [dayStats, setDayStats] = useState<DailyStats | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Date picker state
   const [pickerDate, setPickerDate] = useState(() => new Date(currentDate + 'T12:00:00'));
 
+  // State for date picker validation
+  const [pickerDateHasData, setPickerDateHasData] = useState(false);
+  const [isChangingDate, setIsChangingDate] = useState(false);
+
   // Database hooks
   const { getEntriesForDate, getTotalsForDate, createEntry } = useMealEntries();
   const { getSupplementsForDate, toggleSupplement, setSupplementValue } = useSupplements();
-  const { getStatsForRange } = useDailyStats();
+  const { hasDataForDate, moveDateData, getStatsForRange } = useDailyStats();
 
   // Load data when screen comes into focus or date changes
   const loadData = useCallback(async () => {
     if (!currentDate) return;
-    const [entriesData, totalsData, suppsData] = await Promise.all([
+    const [entriesData, totalsData, suppsData, statsData] = await Promise.all([
       getEntriesForDate(currentDate),
       getTotalsForDate(currentDate),
       getSupplementsForDate(currentDate),
+      getStatsForRange(currentDate, currentDate),
     ]);
     setEntries(entriesData);
     setTotals(totalsData);
     setSupplements(suppsData);
-  }, [currentDate, getEntriesForDate, getTotalsForDate, getSupplementsForDate]);
+    setDayStats(statsData[0] ?? null);
+  }, [currentDate, getEntriesForDate, getTotalsForDate, getSupplementsForDate, getStatsForRange]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [loadData])
   );
+
+  // Check if picker date has data whenever it changes
+  useEffect(() => {
+    const checkPickerDate = async () => {
+      const pickerDateStr = formatDateLocal(pickerDate);
+      // If it's the current date, it doesn't count as "having data" (we're moving FROM there)
+      if (pickerDateStr === currentDate) {
+        setPickerDateHasData(false);
+        return;
+      }
+      const hasData = await hasDataForDate(pickerDateStr);
+      setPickerDateHasData(hasData);
+    };
+    checkPickerDate();
+  }, [pickerDate, currentDate, hasDataForDate]);
 
   // Navigate to previous/next day
   const navigateDay = useCallback((direction: 'prev' | 'next') => {
@@ -145,12 +169,25 @@ export default function DayDetailScreen() {
     setShowDatePicker(true);
   }, [currentDate]);
 
-  // Apply date from picker
-  const handleApplyDate = useCallback(() => {
+  // Change date - move all data from current date to the picker date
+  const handleChangeDate = useCallback(async () => {
     const newDate = formatDateLocal(pickerDate);
-    setCurrentDate(newDate);
-    setShowDatePicker(false);
-  }, [pickerDate]);
+    if (newDate === currentDate) {
+      setShowDatePicker(false);
+      return;
+    }
+
+    setIsChangingDate(true);
+    try {
+      await moveDateData(currentDate, newDate);
+      setShowDatePicker(false);
+      // Navigate to the new date (replace current route so back goes to history)
+      router.replace(`/stats/${newDate}`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to change date. The target date may already have data.');
+      setIsChangingDate(false);
+    }
+  }, [pickerDate, currentDate, moveDateData, router]);
 
   // Handle log food - create entry and navigate to it
   const handleLogFood = useCallback(async () => {
@@ -229,6 +266,25 @@ export default function DayDetailScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Fasting Window Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>FASTING WINDOW</Text>
+          {dayStats && (
+            <View style={[
+              styles.sectionIndicator,
+              dayStats.fasting_compliant ? styles.sectionIndicatorSuccess : styles.sectionIndicatorFail,
+            ]}>
+              {dayStats.fasting_compliant ? (
+                <Check color={colors.accent.green} size={14} strokeWidth={3} />
+              ) : dayStats.finalized ? (
+                <X color={colors.accent.red} size={14} strokeWidth={3} />
+              ) : (
+                <Circle color={colors.text.dim} size={14} />
+              )}
+            </View>
+          )}
+        </View>
+
         {/* Protein Stats */}
         <View style={styles.statsCard}>
           <View style={styles.proteinRow}>
@@ -286,7 +342,23 @@ export default function DayDetailScreen() {
 
         {/* Supplements Section */}
         <View style={styles.supplementsSection}>
-          <Text style={styles.sectionLabel}>SUPPLEMENTS</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>SUPPLEMENTS</Text>
+            {dayStats && (
+              <View style={[
+                styles.sectionIndicator,
+                dayStats.supplements_complete ? styles.sectionIndicatorSuccess : styles.sectionIndicatorFail,
+              ]}>
+                {dayStats.supplements_complete ? (
+                  <Check color={colors.accent.green} size={14} strokeWidth={3} />
+                ) : dayStats.finalized ? (
+                  <X color={colors.accent.red} size={14} strokeWidth={3} />
+                ) : (
+                  <Circle color={colors.text.dim} size={14} />
+                )}
+              </View>
+            )}
+          </View>
           <View style={styles.supplementCard}>
             <View style={styles.supplementGrid}>
               {pillSupplements.map((supplement) => {
@@ -432,6 +504,13 @@ export default function DayDetailScreen() {
               })()}
             </View>
 
+            {/* Warning if date has data */}
+            {pickerDateHasData && (
+              <Text style={styles.dateWarning}>
+                This date already has entries. Choose another date.
+              </Text>
+            )}
+
             <View style={styles.datePickerButtons}>
               <Pressable
                 style={styles.datePickerCancel}
@@ -440,10 +519,19 @@ export default function DayDetailScreen() {
                 <Text style={styles.datePickerCancelText}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={styles.datePickerApply}
-                onPress={handleApplyDate}
+                style={[
+                  styles.datePickerApply,
+                  (pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate) && styles.datePickerApplyDisabled,
+                ]}
+                onPress={handleChangeDate}
+                disabled={pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate}
               >
-                <Text style={styles.datePickerApplyText}>Go to Date</Text>
+                <Text style={[
+                  styles.datePickerApplyText,
+                  (pickerDateHasData || formatDateLocal(pickerDate) === currentDate || isChangingDate) && styles.datePickerApplyTextDisabled,
+                ]}>
+                  {isChangingDate ? 'Moving...' : 'Change to Date'}
+                </Text>
               </Pressable>
             </View>
           </Pressable>
@@ -639,16 +727,36 @@ const styles = StyleSheet.create({
     color: colors.text.dim,
   },
 
-  // Supplements
-  supplementsSection: {
-    marginTop: spacing.md,
+  // Section Headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
   sectionLabel: {
     fontSize: fontSize.xs,
     fontWeight: '600',
     color: colors.text.dim,
     letterSpacing: 1.5,
-    marginBottom: spacing.sm,
+  },
+  sectionIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionIndicatorSuccess: {
+    backgroundColor: colors.accent.green + '20',
+  },
+  sectionIndicatorFail: {
+    backgroundColor: colors.background.tertiary,
+  },
+
+  // Supplements
+  supplementsSection: {
+    marginTop: spacing.lg,
   },
   supplementCard: {
     backgroundColor: colors.background.secondary,
@@ -814,9 +922,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent.orange,
     alignItems: 'center',
   },
+  datePickerApplyDisabled: {
+    backgroundColor: colors.background.tertiary,
+    opacity: 0.5,
+  },
   datePickerApplyText: {
     fontSize: fontSize.md,
     color: colors.text.primary,
     fontWeight: '600',
+  },
+  datePickerApplyTextDisabled: {
+    color: colors.text.dim,
+  },
+  dateWarning: {
+    fontSize: fontSize.sm,
+    color: colors.accent.red,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
 });

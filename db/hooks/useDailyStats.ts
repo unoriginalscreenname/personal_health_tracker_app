@@ -38,14 +38,14 @@ export function useDailyStats() {
   }, [db]);
 
   // Calculate fasting compliance for a date
-  // Rule: All meals must be between 12:00 and 18:00
+  // Rule: All meals must be between 12:00 and 18:00 LOCAL time
   // No meals = not compliant (can't verify)
   const calculateFastingCompliance = useCallback(async (date: string): Promise<boolean> => {
     const result = await db.getFirstAsync<{ compliant: number }>(`
       SELECT CASE
         WHEN COUNT(*) = 0 THEN 0
-        WHEN MIN(CAST(strftime('%H', logged_at) AS INTEGER)) >= 12
-         AND MAX(CAST(strftime('%H', logged_at) AS INTEGER)) < 18 THEN 1
+        WHEN MIN(CAST(strftime('%H', logged_at, 'localtime') AS INTEGER)) >= 12
+         AND MAX(CAST(strftime('%H', logged_at, 'localtime') AS INTEGER)) < 18 THEN 1
         ELSE 0
       END as compliant
       FROM meal_entries
@@ -157,19 +157,34 @@ export function useDailyStats() {
     `, [today]);
   }, [db, getToday, getYesterday, hasRowForDate, finalizeDate]);
 
-  // Update today's stats (in-progress, not finalized)
-  // Call this after user logs meals or supplements
-  const updateTodayStats = useCallback(async (): Promise<void> => {
-    const today = getToday();
-    const fasting = await calculateFastingCompliance(today);
-    const supplements = await calculateSupplementsComplete(today);
+  // Update stats for any date (works for both finalized and non-finalized days)
+  // Call this after user logs meals or supplements for that date
+  const updateStatsForDate = useCallback(async (date: string): Promise<void> => {
+    const fasting = await calculateFastingCompliance(date);
+    const supplements = await calculateSupplementsComplete(date);
 
-    await db.runAsync(`
+    // First try to update existing row
+    const result = await db.runAsync(`
       UPDATE daily_stats
       SET fasting_compliant = ?, supplements_complete = ?, updated_at = datetime('now')
-      WHERE date = ? AND finalized = 0
-    `, [fasting ? 1 : 0, supplements ? 1 : 0, today]);
+      WHERE date = ?
+    `, [fasting ? 1 : 0, supplements ? 1 : 0, date]);
+
+    // If no row existed, create one (for editing past dates that don't have a stats row)
+    if (result.changes === 0) {
+      const today = getToday();
+      const isFinalized = date < today ? 1 : 0;
+      await db.runAsync(`
+        INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
+        VALUES (?, ?, ?, ?)
+      `, [date, fasting ? 1 : 0, supplements ? 1 : 0, isFinalized]);
+    }
   }, [db, getToday, calculateFastingCompliance, calculateSupplementsComplete]);
+
+  // Convenience wrapper for updating today's stats
+  const updateTodayStats = useCallback(async (): Promise<void> => {
+    await updateStatsForDate(getToday());
+  }, [updateStatsForDate, getToday]);
 
   // Get streak count for a metric (only counts finalized days - yesterday and before)
   const getStreak = useCallback(async (
@@ -226,12 +241,40 @@ export function useDailyStats() {
     `, [today]);
   }, [db, getToday]);
 
+  // Check if a date has any data (meal_entries, supplement_logs, or daily_stats)
+  const hasDataForDate = useCallback(async (date: string): Promise<boolean> => {
+    const [meals, supplements, stats] = await Promise.all([
+      db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM meal_entries WHERE date = ?', [date]),
+      db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM supplement_logs WHERE date = ?', [date]),
+      db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM daily_stats WHERE date = ?', [date]),
+    ]);
+    return (meals?.count ?? 0) > 0 || (supplements?.count ?? 0) > 0 || (stats?.count ?? 0) > 0;
+  }, [db]);
+
+  // Move all data from one date to another
+  // This updates meal_entries, supplement_logs, and daily_stats
+  const moveDateData = useCallback(async (fromDate: string, toDate: string): Promise<void> => {
+    // Check if target date already has data
+    const targetHasData = await hasDataForDate(toDate);
+    if (targetHasData) {
+      throw new Error('Target date already has data');
+    }
+
+    // Move all data in a transaction-like manner
+    await db.runAsync('UPDATE meal_entries SET date = ? WHERE date = ?', [toDate, fromDate]);
+    await db.runAsync('UPDATE supplement_logs SET date = ? WHERE date = ?', [toDate, fromDate]);
+    await db.runAsync('UPDATE daily_stats SET date = ? WHERE date = ?', [toDate, fromDate]);
+  }, [db, hasDataForDate]);
+
   return {
     getToday,
     initializeDay,
+    updateStatsForDate,
     updateTodayStats,
     getStreak,
     getStatsForRange,
     getTodayStats,
+    hasDataForDate,
+    moveDateData,
   };
 }
