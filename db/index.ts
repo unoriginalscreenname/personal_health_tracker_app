@@ -18,3 +18,11 @@ export {
   useDailyStats,
   type DailyStats,
 } from './hooks/useDailyStats';
+export {
+  useWorkouts,
+  type BoxingSession,
+  type WeightSession,
+  type ExerciseLog,
+  type Exercise,
+  type LastWeightSessionInfo,
+} from './hooks/useWorkouts';

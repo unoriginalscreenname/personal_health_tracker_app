@@ -4,8 +4,10 @@ import {
   DATABASE_VERSION,
   CREATE_TABLES_SQL,
   ADD_DAILY_STATS_TABLE_SQL,
+  ADD_WORKOUT_TABLES_SQL,
   seedDefaultFoods,
   seedDefaultSupplements,
+  seedDefaultExercises,
 } from './schema';
 
 interface DatabaseProviderProps {
@@ -41,7 +43,7 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
 
   // Version 0 -> 1: Initial schema
   if (currentVersion === 0) {
-    console.log('Initializing database schema v1...');
+    console.log('Initializing database schema v3...');
 
     // Create all tables
     await db.execAsync(CREATE_TABLES_SQL);
@@ -49,6 +51,7 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
     // Seed default data
     await seedDefaultFoods(db);
     await seedDefaultSupplements(db);
+    await seedDefaultExercises(db);
 
     console.log('Database initialized with seed data');
   }
@@ -58,6 +61,14 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
     console.log('Migrating database to v2 (adding daily_stats)...');
     await db.execAsync(ADD_DAILY_STATS_TABLE_SQL);
     console.log('Migration to v2 complete');
+  }
+
+  // Version 2 -> 3: Add workout tables
+  if (currentVersion === 2 || currentVersion === 1) {
+    console.log('Migrating database to v3 (adding workout tables)...');
+    await db.execAsync(ADD_WORKOUT_TABLES_SQL);
+    await seedDefaultExercises(db);
+    console.log('Migration to v3 complete');
   }
 
   // Update version
