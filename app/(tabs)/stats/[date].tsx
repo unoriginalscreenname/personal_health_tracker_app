@@ -10,21 +10,19 @@ import {
   PenLine,
   Check,
   Circle,
-  Droplets,
   X,
   Trash2,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import {
   useMealEntries,
-  useSupplements,
   useDailyStats,
   type MealEntry,
-  type SupplementWithValue,
   type DailyStats,
 } from '@/db';
 
-const TARGET_PROTEIN = 160;
+import { NutritionCard } from '@/components/app/NutritionCard';
+import { SupplementsCard } from '@/components/app/SupplementsCard';
 
 // Helper to format Date to YYYY-MM-DD in local timezone
 function formatDateLocal(d: Date): string {
@@ -56,45 +54,6 @@ function isToday(dateString: string): boolean {
   return dateString === formatDateLocal(new Date());
 }
 
-// WaterDot component for individual dot clicks
-const WaterDot = ({
-  index,
-  isFilled,
-  onPress,
-}: {
-  index: number;
-  isFilled: boolean;
-  onPress: (index: number) => void;
-}) => (
-  <Pressable
-    style={({ pressed }) => [
-      waterDotStyles.dot,
-      isFilled && waterDotStyles.dotFilled,
-      pressed && waterDotStyles.dotPressed,
-    ]}
-    onPress={() => onPress(index)}
-  />
-);
-
-const waterDotStyles = StyleSheet.create({
-  dot: {
-    width: 24,
-    height: 24,
-    borderRadius: 100,
-    backgroundColor: colors.background.tertiary,
-    borderWidth: 2,
-    borderColor: colors.accent.blue + '30',
-  },
-  dotFilled: {
-    backgroundColor: colors.accent.blue,
-    borderColor: colors.accent.blue,
-  },
-  dotPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.95 }],
-  },
-});
-
 export default function DayDetailScreen() {
   const { date: initialDate } = useLocalSearchParams<{ date: string }>();
   const router = useRouter();
@@ -102,37 +61,28 @@ export default function DayDetailScreen() {
   // State
   const [currentDate, setCurrentDate] = useState(initialDate);
   const [entries, setEntries] = useState<MealEntry[]>([]);
-  const [totals, setTotals] = useState({ protein: 0, calories: 0 });
-  const [supplements, setSupplements] = useState<SupplementWithValue[]>([]);
   const [dayStats, setDayStats] = useState<DailyStats | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Date picker state
   const [pickerDate, setPickerDate] = useState(() => new Date(currentDate + 'T12:00:00'));
-
-  // State for date picker validation
   const [pickerDateHasData, setPickerDateHasData] = useState(false);
   const [isChangingDate, setIsChangingDate] = useState(false);
 
   // Database hooks
-  const { getEntriesForDate, getTotalsForDate, createEntry } = useMealEntries();
-  const { getSupplementsForDate, toggleSupplement, setSupplementValue } = useSupplements();
+  const { getEntriesForDate, createEntry } = useMealEntries();
   const { hasDataForDate, moveDateData, getStatsForRange, deleteDate } = useDailyStats();
 
-  // Load data when screen comes into focus or date changes
+  // Load page-specific data (entries for timeline, stats for section headers)
   const loadData = useCallback(async () => {
     if (!currentDate) return;
-    const [entriesData, totalsData, suppsData, statsData] = await Promise.all([
+    const [entriesData, statsData] = await Promise.all([
       getEntriesForDate(currentDate),
-      getTotalsForDate(currentDate),
-      getSupplementsForDate(currentDate),
       getStatsForRange(currentDate, currentDate),
     ]);
     setEntries(entriesData);
-    setTotals(totalsData);
-    setSupplements(suppsData);
     setDayStats(statsData[0] ?? null);
-  }, [currentDate, getEntriesForDate, getTotalsForDate, getSupplementsForDate, getStatsForRange]);
+  }, [currentDate, getEntriesForDate, getStatsForRange]);
 
   useFocusEffect(
     useCallback(() => {
@@ -144,7 +94,6 @@ export default function DayDetailScreen() {
   useEffect(() => {
     const checkPickerDate = async () => {
       const pickerDateStr = formatDateLocal(pickerDate);
-      // If it's the current date, it doesn't count as "having data" (we're moving FROM there)
       if (pickerDateStr === currentDate) {
         setPickerDateHasData(false);
         return;
@@ -164,25 +113,21 @@ export default function DayDetailScreen() {
     setPickerDate(d);
   }, [currentDate]);
 
-  // Open date picker
   const handleOpenDatePicker = useCallback(() => {
     setPickerDate(new Date(currentDate + 'T12:00:00'));
     setShowDatePicker(true);
   }, [currentDate]);
 
-  // Change date - move all data from current date to the picker date
   const handleChangeDate = useCallback(async () => {
     const newDate = formatDateLocal(pickerDate);
     if (newDate === currentDate) {
       setShowDatePicker(false);
       return;
     }
-
     setIsChangingDate(true);
     try {
       await moveDateData(currentDate, newDate);
       setShowDatePicker(false);
-      // Navigate to the new date (replace current route so back goes to history)
       router.replace(`/stats/${newDate}`);
     } catch (error) {
       Alert.alert('Error', 'Failed to change date. The target date may already have data.');
@@ -190,7 +135,6 @@ export default function DayDetailScreen() {
     }
   }, [pickerDate, currentDate, moveDateData, router]);
 
-  // Go to date - just navigate without moving data
   const handleGoToDate = useCallback(() => {
     const newDate = formatDateLocal(pickerDate);
     setShowDatePicker(false);
@@ -199,29 +143,11 @@ export default function DayDetailScreen() {
     }
   }, [pickerDate, currentDate, router]);
 
-  // Handle log food - create entry and navigate to it
   const handleLogFood = useCallback(async () => {
     const entryId = await createEntry(undefined, currentDate);
     router.push(`/nutrition/entry/${entryId}`);
   }, [createEntry, currentDate, router]);
 
-  // Handle supplement tap (for pills)
-  const handleSupplementPress = useCallback(async (supp: SupplementWithValue) => {
-    await toggleSupplement(supp.id, currentDate);
-    const updated = await getSupplementsForDate(currentDate);
-    setSupplements(updated);
-  }, [currentDate, toggleSupplement, getSupplementsForDate]);
-
-  // Handle water dot tap
-  const handleWaterDotPress = useCallback(async (supp: SupplementWithValue, dotIndex: number) => {
-    const targetValue = dotIndex + 1;
-    const newValue = supp.value === targetValue ? dotIndex : targetValue;
-    await setSupplementValue(supp.id, currentDate, newValue);
-    const updated = await getSupplementsForDate(currentDate);
-    setSupplements(updated);
-  }, [currentDate, setSupplementValue, getSupplementsForDate]);
-
-  // Handle delete date
   const handleDeleteDate = useCallback(() => {
     Alert.alert(
       'Delete Date',
@@ -240,11 +166,6 @@ export default function DayDetailScreen() {
     );
   }, [currentDate, deleteDate, router]);
 
-  // Separate water from other supplements
-  const pillSupplements = supplements.filter(s => s.target === 1);
-  const waterSupplement = supplements.find(s => s.name === 'Water');
-
-  const progressPercent = Math.min((totals.protein / TARGET_PROTEIN) * 100, 100);
   const todayDate = formatDateLocal(new Date());
   const canGoNext = currentDate < todayDate;
 
@@ -295,7 +216,7 @@ export default function DayDetailScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Fasting Window Section */}
+        {/* Fasting Section Header */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>FASTING WINDOW</Text>
           {dayStats && (
@@ -315,16 +236,7 @@ export default function DayDetailScreen() {
         </View>
 
         {/* Protein Stats */}
-        <View style={styles.statsCard}>
-          <View style={styles.proteinRow}>
-            <Text style={styles.proteinValue}>{Math.round(totals.protein)}</Text>
-            <Text style={styles.proteinTarget}>/ {TARGET_PROTEIN}g</Text>
-            <Text style={styles.calsValue}>{totals.calories.toLocaleString()} cal</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-          </View>
-        </View>
+        <NutritionCard date={currentDate} />
 
         {/* Log Food Button */}
         <Pressable
@@ -388,62 +300,7 @@ export default function DayDetailScreen() {
               </View>
             )}
           </View>
-          <View style={styles.supplementCard}>
-            <View style={styles.supplementGrid}>
-              {pillSupplements.map((supplement) => {
-                const isComplete = supplement.value >= supplement.target;
-                return (
-                  <Pressable
-                    key={supplement.id}
-                    style={({ pressed }) => [
-                      styles.supplementCell,
-                      isComplete && styles.supplementCellTaken,
-                      pressed && styles.supplementPressed,
-                    ]}
-                    onPress={() => handleSupplementPress(supplement)}
-                  >
-                    <View style={[
-                      styles.supplementCheck,
-                      isComplete && styles.supplementCheckActive,
-                    ]}>
-                      {isComplete ? (
-                        <Check color={colors.background.primary} size={16} strokeWidth={3} />
-                      ) : (
-                        <Circle color={colors.text.dim} size={16} />
-                      )}
-                    </View>
-                    <Text style={[
-                      styles.supplementName,
-                      isComplete && styles.supplementNameTaken,
-                    ]}>
-                      {supplement.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Water Counter */}
-            {waterSupplement && (
-              <View style={styles.waterRow}>
-                <Droplets color={colors.accent.blue} size={20} />
-                <Text style={styles.waterLabel}>Water</Text>
-                <View style={styles.waterDots}>
-                  {Array.from({ length: waterSupplement.target }).map((_, i) => (
-                    <WaterDot
-                      key={i}
-                      index={i}
-                      isFilled={i < waterSupplement.value}
-                      onPress={(dotIndex) => handleWaterDotPress(waterSupplement, dotIndex)}
-                    />
-                  ))}
-                </View>
-                <Text style={styles.waterCount}>
-                  {waterSupplement.value}/{waterSupplement.target}L
-                </Text>
-              </View>
-            )}
-          </View>
+          <SupplementsCard date={currentDate} />
         </View>
 
         {/* Delete Date Button */}
@@ -467,7 +324,6 @@ export default function DayDetailScreen() {
           <Pressable style={styles.datePickerContainer} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.datePickerTitle}>Select Date</Text>
 
-            {/* Month/Year Navigation */}
             <View style={styles.monthNav}>
               <Pressable
                 onPress={() => {
@@ -492,7 +348,6 @@ export default function DayDetailScreen() {
               </Pressable>
             </View>
 
-            {/* Day selector */}
             <View style={styles.dayGrid}>
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
                 <Text key={i} style={styles.dayHeader}>{day}</Text>
@@ -504,9 +359,7 @@ export default function DayDetailScreen() {
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                 const days: (number | null)[] = [];
 
-                // Add empty slots for days before the 1st
                 for (let i = 0; i < firstDay; i++) days.push(null);
-                // Add days of the month
                 for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
                 return days.map((day, i) => {
@@ -542,7 +395,6 @@ export default function DayDetailScreen() {
               })()}
             </View>
 
-            {/* Warning if date has data */}
             {pickerDateHasData && (
               <Text style={styles.dateWarning}>
                 This date already has entries. Choose another date.
@@ -657,44 +509,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.md,
-  },
-
-  // Stats
-  statsCard: {
-    marginBottom: spacing.md,
-  },
-  proteinRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: spacing.sm,
-  },
-  proteinValue: {
-    fontSize: 48,
-    fontWeight: '200',
-    color: colors.accent.green,
-    fontVariant: ['tabular-nums'],
-  },
-  proteinTarget: {
-    fontSize: 28,
-    fontWeight: '200',
-    color: colors.text.dim,
-    fontVariant: ['tabular-nums'],
-  },
-  calsValue: {
-    fontSize: fontSize.xs,
-    color: colors.text.dim,
-    marginLeft: 'auto',
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: colors.background.tertiary,
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.accent.green,
-    borderRadius: borderRadius.full,
   },
 
   // Log Button
@@ -813,78 +627,6 @@ const styles = StyleSheet.create({
   // Supplements
   supplementsSection: {
     marginTop: spacing.lg,
-  },
-  supplementCard: {
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-  },
-  supplementGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  supplementCell: {
-    width: '48%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.tertiary,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    gap: spacing.sm,
-  },
-  supplementCellTaken: {
-    backgroundColor: colors.accent.green + '20',
-  },
-  supplementPressed: {
-    opacity: 0.7,
-  },
-  supplementCheck: {
-    width: 28,
-    height: 28,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  supplementCheckActive: {
-    backgroundColor: colors.accent.green,
-  },
-  supplementName: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    fontWeight: '500',
-    flex: 1,
-  },
-  supplementNameTaken: {
-    color: colors.accent.green,
-  },
-
-  // Water
-  waterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.background.tertiary,
-    gap: spacing.sm,
-  },
-  waterLabel: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    fontWeight: '500',
-  },
-  waterDots: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  waterCount: {
-    fontSize: fontSize.sm,
-    color: colors.accent.blue,
-    fontWeight: '600',
   },
 
   // Date Picker Modal

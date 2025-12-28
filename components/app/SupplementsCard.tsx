@@ -1,16 +1,13 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useState, useCallback, useEffect } from 'react';
 import { Check, Circle, Droplets } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
-import { type SupplementWithValue } from '@/db';
+import { useSupplements, type SupplementWithValue } from '@/db';
 
 interface SupplementsCardProps {
-  pillSupplements: SupplementWithValue[];
-  waterSupplement: SupplementWithValue | undefined;
-  onSupplementPress: (supplement: SupplementWithValue) => void;
-  onWaterDotPress: (supplement: SupplementWithValue, dotIndex: number) => void;
+  date: string;
 }
 
-// WaterDot component for individual dot clicks
 const WaterDot = ({
   index,
   isFilled,
@@ -30,12 +27,38 @@ const WaterDot = ({
   />
 );
 
-export function SupplementsCard({
-  pillSupplements,
-  waterSupplement,
-  onSupplementPress,
-  onWaterDotPress,
-}: SupplementsCardProps) {
+export function SupplementsCard({ date }: SupplementsCardProps) {
+  const { getSupplementsForDate, toggleSupplement, setSupplementValue } = useSupplements();
+  const [supplements, setSupplements] = useState<SupplementWithValue[]>([]);
+
+  // Load supplements when date changes
+  useEffect(() => {
+    const load = async () => {
+      const data = await getSupplementsForDate(date);
+      setSupplements(data);
+    };
+    load();
+  }, [date, getSupplementsForDate]);
+
+  // Handle pill supplement tap
+  const handleSupplementPress = useCallback(async (supp: SupplementWithValue) => {
+    await toggleSupplement(supp.id, date);
+    const updated = await getSupplementsForDate(date);
+    setSupplements(updated);
+  }, [date, toggleSupplement, getSupplementsForDate]);
+
+  // Handle water dot tap
+  const handleWaterDotPress = useCallback(async (supp: SupplementWithValue, dotIndex: number) => {
+    const targetValue = dotIndex + 1;
+    const newValue = supp.value === targetValue ? dotIndex : targetValue;
+    await setSupplementValue(supp.id, date, newValue);
+    const updated = await getSupplementsForDate(date);
+    setSupplements(updated);
+  }, [date, setSupplementValue, getSupplementsForDate]);
+
+  const pillSupplements = supplements.filter(s => s.target === 1);
+  const waterSupplement = supplements.find(s => s.name === 'Water');
+
   return (
     <View style={styles.card}>
       <View style={styles.supplementGrid}>
@@ -49,7 +72,7 @@ export function SupplementsCard({
                 isComplete && styles.supplementCellTaken,
                 pressed && styles.supplementPressed
               ]}
-              onPress={() => onSupplementPress(supplement)}
+              onPress={() => handleSupplementPress(supplement)}
             >
               <View style={[
                 styles.supplementCheck,
@@ -72,7 +95,6 @@ export function SupplementsCard({
         })}
       </View>
 
-      {/* Water Counter */}
       {waterSupplement && (
         <View style={styles.waterRow}>
           <Droplets color={colors.accent.blue} size={20} />
@@ -83,7 +105,7 @@ export function SupplementsCard({
                 key={i}
                 index={i}
                 isFilled={i < waterSupplement.value}
-                onPress={(dotIndex) => onWaterDotPress(waterSupplement, dotIndex)}
+                onPress={(dotIndex) => handleWaterDotPress(waterSupplement, dotIndex)}
               />
             ))}
           </View>
