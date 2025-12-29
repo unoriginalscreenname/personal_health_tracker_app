@@ -159,6 +159,46 @@ export function useMealEntries() {
     );
   }, [db]);
 
+  // Update item details (name, protein, calories)
+  const updateItem = useCallback(async (
+    itemId: number,
+    updates: { name?: string; protein?: number; calories?: number }
+  ): Promise<void> => {
+    const fields: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (updates.name !== undefined) {
+      fields.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.protein !== undefined) {
+      fields.push('protein = ?');
+      values.push(updates.protein);
+    }
+    if (updates.calories !== undefined) {
+      fields.push('calories = ?');
+      values.push(updates.calories);
+    }
+
+    if (fields.length === 0) return;
+
+    values.push(itemId);
+    await db.runAsync(
+      `UPDATE meal_entry_items SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    // Update stats for the entry's date
+    const item = await db.getFirstAsync<{ meal_entry_id: number }>(
+      'SELECT meal_entry_id FROM meal_entry_items WHERE id = ?',
+      [itemId]
+    );
+    if (item) {
+      const date = await getEntryDate(item.meal_entry_id);
+      if (date) await updateStatsForDate(date);
+    }
+  }, [db, getEntryDate, updateStatsForDate]);
+
   // Remove an item from an entry
   const removeItem = useCallback(async (itemId: number): Promise<void> => {
     // Get the entry ID and date before deleting
@@ -260,6 +300,7 @@ export function useMealEntries() {
     addFoodToEntry,
     addCustomItemToEntry,
     updateItemQuantity,
+    updateItem,
     removeItem,
     deleteEntry,
     updateEntryTime,

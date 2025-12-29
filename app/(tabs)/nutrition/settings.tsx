@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Trash2, Calendar, Utensils } from 'lucide-re
 import { useState, useEffect, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useMealEntries, useFoods, type MealEntry, type Food } from '@/db';
+import { FoodTimeline } from '@/components/app/FoodTimeline';
 
 type TabType = 'entries' | 'foods';
 
@@ -25,27 +26,17 @@ function isToday(dateString: string): boolean {
   return dateString === today;
 }
 
-// Format ISO timestamp to display time
-function formatTime(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-}
-
 export default function NutritionSettingsScreen() {
   const router = useRouter();
-  const { getDaysWithEntries, getEntriesForDate, deleteEntriesForDate, deleteAllEntries, deleteEntry } = useMealEntries();
+  const { getDaysWithEntries, deleteEntriesForDate, deleteAllEntries, deleteEntry } = useMealEntries();
   const { getFoods } = useFoods();
 
   // State
   const [activeTab, setActiveTab] = useState<TabType>('entries');
   const [days, setDays] = useState<string[]>([]);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [dayEntries, setDayEntries] = useState<MealEntry[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
+  const [timelineKey, setTimelineKey] = useState(0);
 
   // Load days with entries
   const loadDays = useCallback(async () => {
@@ -56,16 +47,6 @@ export default function NutritionSettingsScreen() {
       console.error('Failed to load days:', error);
     }
   }, [getDaysWithEntries]);
-
-  // Load entries for selected day
-  const loadDayEntries = useCallback(async (date: string) => {
-    try {
-      const entries = await getEntriesForDate(date);
-      setDayEntries(entries);
-    } catch (error) {
-      console.error('Failed to load entries:', error);
-    }
-  }, [getEntriesForDate]);
 
   // Load foods list
   const loadFoods = useCallback(async () => {
@@ -82,12 +63,6 @@ export default function NutritionSettingsScreen() {
     loadFoods();
   }, [loadDays, loadFoods]);
 
-  useEffect(() => {
-    if (selectedDay) {
-      loadDayEntries(selectedDay);
-    }
-  }, [selectedDay, loadDayEntries]);
-
   // Handle selecting a day
   const handleSelectDay = (date: string) => {
     setSelectedDay(date);
@@ -96,7 +71,6 @@ export default function NutritionSettingsScreen() {
   // Handle going back to day list
   const handleBackToDays = () => {
     setSelectedDay(null);
-    setDayEntries([]);
   };
 
   // Handle deleting all entries for a day
@@ -114,7 +88,6 @@ export default function NutritionSettingsScreen() {
               await deleteEntriesForDate(date);
               if (selectedDay === date) {
                 setSelectedDay(null);
-                setDayEntries([]);
               }
               await loadDays();
             } catch (error) {
@@ -129,9 +102,14 @@ export default function NutritionSettingsScreen() {
 
   // Handle deleting a single entry
   const handleDeleteEntry = (entry: MealEntry) => {
+    const entryTime = new Date(entry.logged_at).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
     Alert.alert(
       'Delete Entry',
-      `Delete this entry from ${formatTime(entry.logged_at)}?`,
+      `Delete this entry from ${entryTime}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -140,9 +118,7 @@ export default function NutritionSettingsScreen() {
           onPress: async () => {
             try {
               await deleteEntry(entry.id);
-              if (selectedDay) {
-                await loadDayEntries(selectedDay);
-              }
+              setTimelineKey(k => k + 1); // Refresh timeline
               await loadDays();
             } catch (error) {
               console.error('Failed to delete entry:', error);
@@ -169,7 +145,6 @@ export default function NutritionSettingsScreen() {
               await deleteAllEntries();
               setDays([]);
               setSelectedDay(null);
-              setDayEntries([]);
             } catch (error) {
               console.error('Failed to reset data:', error);
               Alert.alert('Error', 'Failed to reset data');
@@ -246,7 +221,7 @@ export default function NutritionSettingsScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {!selectedDay && activeTab === 'entries' && (
           // Entries tab - Day list view
           <>
@@ -318,44 +293,7 @@ export default function NutritionSettingsScreen() {
 
         {selectedDay && (
           // Day detail view (timeline)
-          <>
-            {dayEntries.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No entries</Text>
-              </View>
-            ) : (
-              <View style={styles.timeline}>
-                {dayEntries.map((entry) => (
-                  <Pressable
-                    key={entry.id}
-                    style={({ pressed }) => [styles.timelineEntry, pressed && styles.timelineEntryPressed]}
-                    onPress={() => router.push(`/nutrition/entry/${entry.id}`)}
-                  >
-                    <View style={styles.timelineLeft}>
-                      <Text style={styles.timelineTime}>{formatTime(entry.logged_at)}</Text>
-                      <View style={styles.timelineLine} />
-                    </View>
-                    <View style={styles.timelineContent}>
-                      <View style={styles.foodItems}>
-                        {entry.items.map((item) => (
-                          <View key={item.id} style={styles.foodChip}>
-                            <Text style={styles.foodName}>{item.name}</Text>
-                            <Text style={styles.foodProtein}>{Math.round(item.protein * item.quantity)}g</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                    <Pressable
-                      style={({ pressed }) => [styles.entryDeleteButton, pressed && styles.entryDeleteButtonPressed]}
-                      onPress={() => handleDeleteEntry(entry)}
-                    >
-                      <Trash2 color={colors.text.dim} size={16} />
-                    </Pressable>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </>
+          <FoodTimeline key={timelineKey} date={selectedDay} onDeleteEntry={handleDeleteEntry} />
         )}
       </ScrollView>
     </SafeAreaView>
@@ -430,7 +368,10 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     padding: spacing.md,
+    paddingBottom: spacing.xxl,
   },
   emptyState: {
     alignItems: 'center',
@@ -499,73 +440,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.accent.red,
   },
-  // Timeline styles (copied from nutrition index)
-  timeline: {
-    gap: spacing.sm,
-  },
-  timelineEntry: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  timelineEntryPressed: {
-    opacity: 0.7,
-  },
-  timelineLeft: {
-    width: 80,
-    alignItems: 'flex-end',
-    paddingRight: spacing.md,
-  },
-  timelineTime: {
-    fontSize: fontSize.xs,
-    color: colors.text.dim,
-    marginBottom: spacing.xs,
-  },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: colors.background.tertiary,
-    marginTop: spacing.xs,
-  },
-  timelineContent: {
-    flex: 1,
-    paddingBottom: spacing.md,
-  },
-  foodItems: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  foodChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.secondary,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.sm,
-    gap: spacing.xs,
-  },
-  foodName: {
-    fontSize: fontSize.xs,
-    color: colors.text.secondary,
-  },
-  foodProtein: {
-    fontSize: fontSize.xs,
-    color: colors.accent.green,
-    fontWeight: '600',
-  },
-  entryDeleteButton: {
-    width: 32,
-    height: 32,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: spacing.sm,
-  },
-  entryDeleteButtonPressed: {
-    opacity: 0.7,
-  },
-
   // Foods list
   foodsList: {
     gap: spacing.sm,

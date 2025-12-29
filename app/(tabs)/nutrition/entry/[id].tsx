@@ -1,11 +1,12 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronLeft, Plus, Trash2, X, PenLine, Clock } from 'lucide-react-native';
 import { useState, useCallback } from 'react';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
-import { useFoods, useMealEntries, type Food, type MealEntry } from '@/db';
+import { useFoods, useMealEntries, type Food, type MealEntry, type MealEntryItem } from '@/db';
+import { FoodForm, type FoodFormData } from '@/components/app/FoodForm';
 
 // Format ISO timestamp to display time (e.g., "12:15 PM")
 function formatTime(isoString: string): string {
@@ -24,7 +25,7 @@ export default function EntryDetailScreen() {
 
   // Database hooks
   const { getFoods } = useFoods();
-  const { getEntry, addFoodToEntry, removeItem, deleteEntry, updateEntryTime } = useMealEntries();
+  const { getEntry, addFoodToEntry, removeItem, deleteEntry, updateEntryTime, updateItem } = useMealEntries();
 
   // State
   const [entry, setEntry] = useState<MealEntry | null>(null);
@@ -34,6 +35,7 @@ export default function EntryDetailScreen() {
   const [selectedHour, setSelectedHour] = useState(12);
   const [selectedMinute, setSelectedMinute] = useState(0);
   const [selectedAmPm, setSelectedAmPm] = useState<'AM' | 'PM'>('PM');
+  const [editingItem, setEditingItem] = useState<MealEntryItem | null>(null);
 
   // Load entry and foods
   const loadData = useCallback(async () => {
@@ -86,6 +88,28 @@ export default function EntryDetailScreen() {
       Alert.alert('Error', 'Failed to remove item');
     }
   }, [removeItem, loadData]);
+
+  // Handle editing an item
+  const handleEditItem = useCallback((item: MealEntryItem) => {
+    setEditingItem(item);
+  }, []);
+
+  // Handle saving edited item
+  const handleSaveEditedItem = useCallback(async (data: FoodFormData) => {
+    if (!editingItem) return;
+    try {
+      await updateItem(editingItem.id, {
+        name: data.name,
+        protein: data.protein,
+        calories: data.calories,
+      });
+      setEditingItem(null);
+      await loadData();
+    } catch (error) {
+      console.error('Failed to update item:', error);
+      Alert.alert('Error', 'Failed to update item');
+    }
+  }, [editingItem, updateItem, loadData]);
 
   // Handle deleting the entire entry
   const handleDeleteEntry = useCallback(() => {
@@ -204,6 +228,12 @@ export default function EntryDetailScreen() {
                   {Math.round(item.protein * item.quantity)}g · {Math.round(item.calories * item.quantity)} cal
                 </Text>
               </View>
+              <Pressable
+                style={({ pressed }) => [styles.editButton, pressed && styles.editButtonPressed]}
+                onPress={() => handleEditItem(item)}
+              >
+                <PenLine color={colors.text.dim} size={16} />
+              </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.removeButton, pressed && styles.removeButtonPressed]}
                 onPress={() => handleRemoveItem(item.id)}
@@ -341,6 +371,42 @@ export default function EntryDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Edit Item Modal */}
+      <Modal
+        visible={editingItem !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingItem(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.editModalOverlay}
+        >
+          <Pressable style={styles.editModalOverlay} onPress={() => setEditingItem(null)}>
+            <Pressable style={styles.editModalContainer} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.editModalHeader}>
+                <Text style={styles.editModalTitle}>Edit Food</Text>
+                <Pressable onPress={() => setEditingItem(null)}>
+                  <X color={colors.text.dim} size={24} />
+                </Pressable>
+              </View>
+              {editingItem && (
+                <FoodForm
+                  initialValues={{
+                    name: editingItem.name,
+                    protein: editingItem.protein,
+                    calories: editingItem.calories,
+                  }}
+                  onSave={handleSaveEditedItem}
+                  onCancel={() => setEditingItem(null)}
+                  saveLabel="Update"
+                />
+              )}
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -433,6 +499,18 @@ const styles = StyleSheet.create({
   itemMacros: {
     fontSize: fontSize.sm,
     color: colors.text.muted,
+  },
+  editButton: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.background.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.xs,
+  },
+  editButtonPressed: {
+    opacity: 0.7,
   },
   removeButton: {
     width: 32,
@@ -626,5 +704,32 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text.primary,
     fontWeight: '600',
+  },
+
+  // Edit Modal
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editModalContainer: {
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  editModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  editModalTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text.primary,
   },
 });
