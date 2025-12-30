@@ -57,7 +57,7 @@ export function FoodTimeline({ date, onDeleteEntry }: FoodTimelineProps) {
         <View key={entry.id} style={styles.timelineRow}>
           <Pressable
             style={({ pressed }) => [styles.timelineEntry, pressed && styles.timelineEntryPressed]}
-            onPress={() => router.push(`/nutrition/entry/${entry.id}`)}
+            onPress={() => router.push(`/entry/${entry.id}`)}
           >
             <View style={styles.timelineLeft}>
               <Text style={styles.timelineTime}>{formatTime(entry.logged_at)}</Text>
