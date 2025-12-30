@@ -70,10 +70,10 @@ export default function EntryDetailScreen() {
     }
   }, [entryId, addFoodToEntry, loadData]);
 
-  // Navigate to custom food screen
+  // Navigate to custom food screen (at root level)
   const handleAddCustomFood = useCallback(() => {
     router.push({
-      pathname: '/nutrition/custom-food',
+      pathname: '/custom-food',
       params: { entryId: entryId.toString() }
     });
   }, [entryId, router]);

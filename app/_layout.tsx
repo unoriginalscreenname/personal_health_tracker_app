@@ -13,9 +13,12 @@ export default function RootLayout() {
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: colors.background.primary },
+            animation: 'slide_from_right',
           }}
         >
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="add-food" />
+          <Stack.Screen name="custom-food" />
         </Stack>
       </View>
     </DatabaseProvider>

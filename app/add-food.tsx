@@ -8,13 +8,16 @@ import { useFoods, useMealEntries, type Food, type RecentCustomItem } from '@/db
 
 type TabType = 'recent' | 'quick';
 
-export default function MealDetailScreen() {
-  const { meal } = useLocalSearchParams<{ meal: string }>();
+export default function AddFoodScreen() {
+  const { date } = useLocalSearchParams<{ date?: string }>();
   const router = useRouter();
 
   // Database hooks
   const { getFoods } = useFoods();
-  const { createEntry, addFoodToEntry, addCustomItemToEntry, removeItem, getRecentCustomItems } = useMealEntries();
+  const { createEntry, addFoodToEntry, addCustomItemToEntry, removeItem, getRecentCustomItems, getToday } = useMealEntries();
+
+  // Use provided date or default to today
+  const targetDate = date || getToday();
 
   // State
   const [activeTab, setActiveTab] = useState<TabType>('recent');
@@ -80,7 +83,7 @@ export default function MealDetailScreen() {
 
         // Create entry if this is the first item
         if (!entryId) {
-          entryId = await createEntry(meal);
+          entryId = await createEntry(undefined, targetDate);
           setCurrentEntryId(entryId);
         }
 
@@ -92,7 +95,7 @@ export default function MealDetailScreen() {
       console.error('Failed to toggle food:', error);
       Alert.alert('Error', 'Failed to update food');
     }
-  }, [currentEntryId, meal, createEntry, addFoodToEntry, removeItem, addedFoods]);
+  }, [currentEntryId, targetDate, createEntry, addFoodToEntry, removeItem, addedFoods]);
 
   // Handle toggling a recent custom item
   const handleToggleRecentItem = useCallback(async (item: RecentCustomItem) => {
@@ -113,7 +116,7 @@ export default function MealDetailScreen() {
 
         // Create entry if this is the first item
         if (!entryId) {
-          entryId = await createEntry(meal);
+          entryId = await createEntry(undefined, targetDate);
           setCurrentEntryId(entryId);
         }
 
@@ -125,16 +128,16 @@ export default function MealDetailScreen() {
       console.error('Failed to toggle recent item:', error);
       Alert.alert('Error', 'Failed to update food');
     }
-  }, [currentEntryId, meal, createEntry, addCustomItemToEntry, removeItem, addedRecentItems]);
+  }, [currentEntryId, targetDate, createEntry, addCustomItemToEntry, removeItem, addedRecentItems]);
 
-  // Navigate to custom food screen
+  // Navigate to custom food screen (now at root level)
   const handleAddCustomFood = useCallback(() => {
-    const params: { mealType: string; entryId?: string } = { mealType: meal };
+    const params: { date: string; entryId?: string } = { date: targetDate };
     if (currentEntryId) {
       params.entryId = currentEntryId.toString();
     }
-    router.push({ pathname: '/nutrition/custom-food', params });
-  }, [meal, currentEntryId, router]);
+    router.push({ pathname: '/custom-food', params });
+  }, [targetDate, currentEntryId, router]);
 
   // Total added count
   const totalAdded = addedFoods.size + addedRecentItems.size;
@@ -156,7 +159,7 @@ export default function MealDetailScreen() {
             style={({ pressed }) => [styles.addedBadge, pressed && styles.addedBadgePressed]}
             onPress={() => router.back()}
           >
-            <Text style={styles.addedBadgeText}>{totalAdded} added ✓</Text>
+            <Text style={styles.addedBadgeText}>{totalAdded} added</Text>
           </Pressable>
         )}
       </View>

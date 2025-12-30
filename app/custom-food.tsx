@@ -9,9 +9,12 @@ import { FoodForm, type FoodFormData } from '@/components/app/FoodForm';
 
 export default function CustomFoodScreen() {
   const router = useRouter();
-  const { mealType, entryId } = useLocalSearchParams<{ mealType?: string; entryId?: string }>();
+  const { date, entryId } = useLocalSearchParams<{ date?: string; entryId?: string }>();
 
-  const { createEntry, addCustomItemToEntry } = useMealEntries();
+  const { createEntry, addCustomItemToEntry, getToday } = useMealEntries();
+
+  // Use provided date or default to today
+  const targetDate = date || getToday();
 
   const handleSave = useCallback(async (data: FoodFormData) => {
     let targetEntryId: number;
@@ -20,7 +23,7 @@ export default function CustomFoodScreen() {
     if (entryId) {
       targetEntryId = parseInt(entryId, 10);
     } else {
-      targetEntryId = await createEntry(mealType || undefined);
+      targetEntryId = await createEntry(undefined, targetDate);
     }
 
     // Add the custom food item
@@ -34,7 +37,7 @@ export default function CustomFoodScreen() {
     );
 
     router.back();
-  }, [entryId, mealType, createEntry, addCustomItemToEntry, router]);
+  }, [entryId, targetDate, createEntry, addCustomItemToEntry, router]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

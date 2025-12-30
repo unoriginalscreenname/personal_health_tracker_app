@@ -11,10 +11,8 @@ export default function NutritionLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="[meal]" />
       <Stack.Screen name="entry/[id]" />
       <Stack.Screen name="settings" />
-      <Stack.Screen name="custom-food" />
     </Stack>
   );
 }

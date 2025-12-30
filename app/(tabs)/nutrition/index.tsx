@@ -63,7 +63,7 @@ export default function NutritionScreen() {
         {/* Log Food CTA */}
         <Pressable
           style={({ pressed }) => [styles.logButton, pressed && styles.logButtonPressed]}
-          onPress={() => router.push('/nutrition/opener')}
+          onPress={() => router.push('/add-food')}
         >
           <PenLine color={colors.accent.green} size={18} />
           <Text style={styles.logButtonText}>Log food</Text>

@@ -15,7 +15,6 @@ import {
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import {
-  useMealEntries,
   useDailyStats,
   type DailyStats,
 } from '@/db';
@@ -59,7 +58,6 @@ export default function DayDetailScreen() {
   const [isChangingDate, setIsChangingDate] = useState(false);
 
   // Database hooks
-  const { createEntry } = useMealEntries();
   const { hasDataForDate, moveDateData, getStatsForRange, deleteDate } = useDailyStats();
 
   // Load page-specific data (stats for section headers)
@@ -128,10 +126,9 @@ export default function DayDetailScreen() {
     }
   }, [pickerDate, currentDate, router]);
 
-  const handleLogFood = useCallback(async () => {
-    const entryId = await createEntry(undefined, currentDate);
-    router.push(`/nutrition/entry/${entryId}`);
-  }, [createEntry, currentDate, router]);
+  const handleLogFood = useCallback(() => {
+    router.push(`/add-food?date=${currentDate}`);
+  }, [currentDate, router]);
 
   const handleDeleteDate = useCallback(() => {
     Alert.alert(
