@@ -8,37 +8,63 @@ VisceralCommand is a React Native/Expo Android app for a 30-day metabolic reset 
 
 ## Commands
 
-### Running the App
+### Running the App (Smart Startup Protocol)
 
+**IMPORTANT**: Always diagnose first, then act. Don't blindly kill processes.
+
+**Step 1: Check current state (run all 3 in parallel)**
 ```bash
-# Start emulator (wait 20-30s for boot)
-$ANDROID_HOME/emulator/emulator -avd "Medium_Phone_API_36.0" &
+adb devices                          # Emulator running?
+lsof -i:8081 | head -3               # Metro running?
+ps aux | grep -E "emulator" | grep -v grep | head -1  # Emulator process?
+```
 
-# Verify emulator connected
-adb devices
+**Step 2: Based on results, do only what's needed**
 
-# Set up port forwarding (required)
-adb reverse tcp:8081 tcp:8081
+| Emulator | Port 8081 | Action |
+|----------|-----------|--------|
+| ✓ device | ✓ occupied | Just run: `adb reverse tcp:8081 tcp:8081` then launch app |
+| ✓ device | ✗ free | Run: `adb reverse tcp:8081 tcp:8081 && npx expo start --dev-client` (background), then launch app |
+| ✗ none | ✓ occupied | Kill port 8081 PID, start emulator, wait 25s, then full setup |
+| ✗ none | ✗ free | Start emulator, wait 25s, then full setup |
 
-# Start Metro bundler
-npx expo start --dev-client
-
-# Launch app (if needed)
+**Step 3: Launch app (after Metro is running)**
+```bash
 adb shell monkey -p com.personal.visceralcommand -c android.intent.category.LAUNCHER 1
 ```
 
-### If App Won't Load (White Screen)
-
+**Full setup commands (when starting fresh)**
 ```bash
-# Kill stuck processes
-pkill -f "expo"; pkill -f "metro"; lsof -ti:8081 | xargs kill -9
+# Start emulator (wait 25-30s for boot)
+$ANDROID_HOME/emulator/emulator -avd "Medium_Phone_API_36.0" &
+sleep 25 && adb devices
 
-# Restart ADB
-adb kill-server && adb start-server
-
-# Then run setup again
+# Port forwarding + Metro
 adb reverse tcp:8081 tcp:8081
-npx expo start --dev-client
+npx expo start --dev-client  # Run in background
+
+# Launch app
+adb shell monkey -p com.personal.visceralcommand -c android.intent.category.LAUNCHER 1
+```
+
+### If App Shows Black/White Screen
+
+**Diagnose first:**
+```bash
+curl -s localhost:8081 | head -1     # Metro responding?
+adb reverse --list                    # Port forwarding active?
+```
+
+**Fix based on diagnosis:**
+- Metro not responding → Kill specific PID on 8081, restart Expo
+- Port forwarding missing → `adb reverse tcp:8081 tcp:8081`
+- Both broken → Kill 8081 PID (not pkill), restart Expo, relaunch app
+
+**Nuclear option (only if nothing else works):**
+```bash
+lsof -ti:8081 | xargs kill -9 2>/dev/null
+adb kill-server && adb start-server
+# Then full setup again
 ```
 
 ### Building from Scratch
