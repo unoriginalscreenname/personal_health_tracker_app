@@ -279,6 +279,57 @@ export function useAppState() {
 
 ## Date/Time Handling
 
+### CRITICAL: Date String Parsing Timezone Bug
+
+When parsing date strings like `"2024-12-30"` (without time), JavaScript interprets them as **UTC midnight**. When you then use local timezone methods, the date can shift by a day!
+
+```typescript
+// ❌ WRONG - Can shift to previous day in western timezones
+const date = new Date("2024-12-30");
+// In PST (UTC-8): This becomes Dec 29, 4:00 PM local time!
+
+// ❌ WRONG - formatDateLocal will return "2024-12-29" in PST
+function formatDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const result = formatDateLocal(new Date("2024-12-30")); // "2024-12-29" in PST!
+
+// ✅ CORRECT - Add T12:00:00 to parse as local noon
+const date = new Date("2024-12-30T12:00:00");
+// Now stays on Dec 30 regardless of timezone
+```
+
+**Rule**: Always append `T12:00:00` when converting a date string (YYYY-MM-DD) to a Date object for local timezone operations.
+
+### Helper for Safe Date Parsing
+
+```typescript
+// Use this when you need to convert a date string to Date for comparisons
+function parseDateLocal(dateString: string): Date {
+  return new Date(dateString + 'T12:00:00');
+}
+
+// Use this when you need today's date as a string
+function getToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Use this when you need yesterday's date as a string
+function getYesterday(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+```
+
+### When This Matters
+
+- Comparing dates in streak calculations
+- Filling gaps in date sequences
+- Any loop that iterates through dates
+- Displaying dates in UI (already handled in `stats/index.tsx`)
+
 ### Using date-fns
 ```typescript
 import { format, differenceInSeconds, addHours, isWithinInterval } from 'date-fns';

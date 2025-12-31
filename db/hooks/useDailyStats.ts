@@ -91,22 +91,18 @@ export function useDailyStats() {
 
   // Initialize a new day - call this on app open / screen focus
   // Handles: first day ever, normal next day, gaps after days of not using app
+  // IMPORTANT: Fill gaps from OLDEST row forward to catch all missing days
   const initializeDay = useCallback(async (): Promise<void> => {
     const today = getToday();
     const yesterday = getYesterday();
 
-    // Check if today already initialized
-    const todayExists = await hasRowForDate(today);
-    if (todayExists) return; // Already done for today
-
-    // Get most recent row
-    const lastRow = await db.getFirstAsync<{ date: string; finalized: number }>(
-      'SELECT date, finalized FROM daily_stats ORDER BY date DESC LIMIT 1'
+    // 1. Get OLDEST row (to fill ALL gaps from the beginning)
+    const oldestRow = await db.getFirstAsync<{ date: string }>(
+      'SELECT date FROM daily_stats ORDER BY date ASC LIMIT 1'
     );
 
-    if (!lastRow) {
-      // FIRST DAY EVER - no previous data exists
-      // Just create today's row and we're done
+    // 2. FIRST DAY EVER - no previous data exists, just create today
+    if (!oldestRow) {
       await db.runAsync(`
         INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
         VALUES (?, 0, 0, 0)
@@ -114,47 +110,40 @@ export function useDailyStats() {
       return;
     }
 
-    // Previous rows exist - handle rollover
-    const lastDate = new Date(lastRow.date);
+    // 3. Finalize any unfinalized days from the past
+    const unfinalizedRows = await db.getAllAsync<{ date: string }>(
+      'SELECT date FROM daily_stats WHERE finalized = 0 AND date < ?',
+      [today]
+    );
+    for (const row of unfinalizedRows) {
+      await finalizeDate(row.date);
+    }
+
+    // 4. FILL GAPS - from oldest row to yesterday (catches ALL missing days)
+    const dayAfterOldest = new Date(oldestRow.date);
+    dayAfterOldest.setDate(dayAfterOldest.getDate() + 1);
     const yesterdayDate = new Date(yesterday);
 
-    // If last row is not finalized, it was "today" from a previous session
-    // We need to finalize it now
-    if (lastRow.finalized === 0) {
-      await finalizeDate(lastRow.date);
-    }
-
-    // Check for gaps - days between lastRow and yesterday that need backfilling
-    const dayAfterLast = new Date(lastRow.date);
-    dayAfterLast.setDate(dayAfterLast.getDate() + 1);
-
-    while (dayAfterLast <= yesterdayDate) {
-      const dateStr = formatDateLocal(dayAfterLast);
-
-      // Skip if this date already has a row (shouldn't happen, but safety check)
+    while (dayAfterOldest <= yesterdayDate) {
+      const dateStr = formatDateLocal(dayAfterOldest);
       const exists = await hasRowForDate(dateStr);
+
       if (!exists) {
-        if (dateStr === yesterday) {
-          // Yesterday might have data (user logged stuff but didn't open app today until now)
-          // Calculate actual stats
-          await finalizeDate(yesterday);
-        } else {
-          // Gap day - no data, mark as failure
-          await db.runAsync(`
-            INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
-            VALUES (?, 0, 0, 1)
-          `, [dateStr]);
-        }
+        // Missing day - use finalizeDate to calculate actual stats if any data exists
+        await finalizeDate(dateStr);
       }
 
-      dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+      dayAfterOldest.setDate(dayAfterOldest.getDate() + 1);
     }
 
-    // Finally, create today's row
-    await db.runAsync(`
-      INSERT OR IGNORE INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
-      VALUES (?, 0, 0, 0)
-    `, [today]);
+    // 5. Create today's row if it doesn't exist
+    const todayExists = await hasRowForDate(today);
+    if (!todayExists) {
+      await db.runAsync(`
+        INSERT INTO daily_stats (date, fasting_compliant, supplements_complete, finalized)
+        VALUES (?, 0, 0, 0)
+      `, [today]);
+    }
   }, [db, getToday, getYesterday, hasRowForDate, finalizeDate]);
 
   // Update stats for any date (works for both finalized and non-finalized days)
@@ -201,7 +190,8 @@ export function useDailyStats() {
     `, [yesterday]);
 
     let streak = 0;
-    const startDate = new Date(yesterday);
+    // Add T12:00:00 to parse as local noon, avoiding timezone day-shift issues
+    const startDate = new Date(yesterday + 'T12:00:00');
 
     for (const row of rows) {
       const expectedDate = new Date(startDate);
@@ -233,7 +223,8 @@ export function useDailyStats() {
     `, [yesterday]);
 
     let baseStreak = 0;
-    const startDate = new Date(yesterday);
+    // Add T12:00:00 to parse as local noon, avoiding timezone day-shift issues
+    const startDate = new Date(yesterday + 'T12:00:00');
 
     for (const row of rows) {
       const expectedDate = new Date(startDate);
