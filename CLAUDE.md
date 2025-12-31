@@ -101,26 +101,78 @@ To update the app after code changes, run the build and install commands again.
 
 ### Tech Stack
 - **Expo SDK 54** with Expo Router (file-based navigation)
+- **expo-sqlite** for local database with migration system
+- **expo-notifications** for local notifications
 - **React Native StyleSheet** for styling (NOT NativeWind/Tailwind - causes dependency conflicts)
-- **Zustand** for state management (not yet implemented)
 - **lucide-react-native** for icons
+- **React Context** for shared state (e.g., SittingTimerProvider)
 
 ### File Structure
 ```
 app/
-├── _layout.tsx           # Root layout with StatusBar
+├── _layout.tsx              # Root layout (DatabaseProvider, SittingTimerProvider)
+├── standup.tsx              # Stand-up exercise screen (standalone)
+├── add-food.tsx             # Add food to meal entry
+├── custom-food.tsx          # Create custom food
+├── entry/
+│   └── [id].tsx             # Meal entry detail/edit screen
 ├── (tabs)/
-│   ├── _layout.tsx       # Tab navigator (Command, Fuel, Armory, Log)
-│   ├── index.tsx         # Command Center home screen
-│   ├── nutrition/        # Nested stack navigation
-│   │   ├── _layout.tsx   # Stack for nutrition screens
-│   │   ├── index.tsx     # Meal zones grid + food timeline
-│   │   └── [meal].tsx    # Dynamic meal detail page
-│   ├── workout.tsx       # Workout tracking
-│   └── history.tsx       # History/calendar view
+│   ├── _layout.tsx          # Tab navigator (Command, Fuel, Workout, Stats)
+│   ├── index.tsx            # Command Center home screen
+│   ├── history.tsx          # Calendar/history view
+│   ├── nutrition/
+│   │   ├── _layout.tsx      # Stack navigator
+│   │   ├── index.tsx        # Food timeline + daily totals
+│   │   └── settings.tsx     # Nutrition settings
+│   ├── stats/
+│   │   ├── _layout.tsx      # Stack navigator
+│   │   ├── index.tsx        # Stats history list
+│   │   └── [date].tsx       # Single day detail
+│   └── workout/
+│       ├── _layout.tsx      # Stack navigator
+│       ├── index.tsx        # Workout type selection
+│       ├── boxing.tsx       # Boxing session
+│       └── weights.tsx      # 5x5 weight training
+
+components/
+└── app/                     # App-specific components (self-contained with date prop)
+    ├── FastingCard.tsx      # Fasting status display
+    ├── FoodForm.tsx         # Reusable food entry form
+    ├── FoodTimeline.tsx     # Meal entries timeline
+    ├── NutritionCard.tsx    # Daily nutrition summary
+    ├── SittingModeCard.tsx  # Sit/stand timer control
+    ├── StreakBanner.tsx     # Streak display
+    ├── SupplementsCard.tsx  # Supplement checklist
+    └── WorkoutCard.tsx      # Workout status
+
 constants/
-└── theme.ts              # Colors, spacing, typography constants
+└── theme.ts                 # Colors, spacing, typography constants
+
+db/
+├── database.tsx             # DatabaseProvider, migrations
+├── schema.ts                # Table definitions, seed data
+├── index.ts                 # Exports all hooks
+└── hooks/
+    ├── useDailyStats.ts     # Streak calculations, day initialization
+    ├── useFoods.ts          # Food CRUD operations
+    ├── useMealEntries.ts    # Meal entry + items
+    ├── useSittingSessions.ts # Sit/stand session logging
+    ├── useSupplements.ts    # Supplement tracking
+    └── useWorkouts.ts       # Boxing + weight sessions
+
+hooks/
+├── useFastingState.ts       # Fasting window calculations
+└── useSittingTimer.tsx      # Timer state machine + Context provider
 ```
+
+### Database Schema (v5)
+- `foods` - Master food list
+- `meal_entries` + `meal_entry_items` - Food logging
+- `supplements` + `supplement_logs` - Supplement tracking
+- `daily_stats` - Daily completion flags for streaks
+- `boxing_sessions` - Timed boxing workouts
+- `exercises` + `weight_sessions` + `weight_exercise_logs` - 5x5 program
+- `sitting_sessions` - Completed sit/stand cycles
 
 ### Styling Approach
 
@@ -159,9 +211,11 @@ At the end of significant work sessions, create a notes file in `_plan/session/`
 - **Commits**: Always include commit hashes from the session (run `git log --oneline -5`)
 - **Style**: Follow the pattern in existing `_plan/session/` files
 
-## Key Files
+## Starting Each Session
+
+At the start of each session, **always** begin by reading the following files.
 
 - `_plan/page-component-structure.md` - Component organization rules (READ THIS)
 - `_plan/design-brief.md` - UI/UX design principles
-- `_plan/prd.md` - Full product requirements
-- `_plan/react-native-android-setup.md` - Detailed setup/troubleshooting guide
+- `_plan/react-native-best-practices.md` - React Native patterns, date handling, hooks
+- The last three notes files from the last three sessions located in this directory: `_plan/session`
