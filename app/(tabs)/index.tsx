@@ -2,7 +2,7 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { colors, spacing, fontSize } from '@/constants/theme';
 import { useDailyStats } from '@/db';
 import { StreakBanner } from '@/components/app/StreakBanner';
@@ -11,6 +11,7 @@ import { SittingModeCard } from '@/components/app/SittingModeCard';
 import { NutritionCard } from '@/components/app/NutritionCard';
 import { SupplementsCard } from '@/components/app/SupplementsCard';
 import { WorkoutCard } from '@/components/app/WorkoutCard';
+import { useSittingTimer } from '@/hooks/useSittingTimer';
 
 // Helper to get today's date as YYYY-MM-DD
 function getToday(): string {
@@ -25,13 +26,12 @@ export default function CommandCenterScreen() {
   // Database hooks for streak only
   const { initializeDay, getCombinedStreak, getStatsForRange } = useDailyStats();
 
+  // Sitting timer - check if we need to navigate to stand-up screen
+  const { status: sittingStatus } = useSittingTimer();
+
   // State for streak banner (still needs page-level data)
   const [streakDays, setStreakDays] = useState(0);
   const [currentDay, setCurrentDay] = useState(1);
-
-  // Mock data - will be replaced with real state
-  const isSitting = false;
-  const sittingMinutes = 23;
 
   // Workout data
   const workedOutToday = false;
@@ -58,6 +58,14 @@ export default function CommandCenterScreen() {
       loadData();
     }, [loadData])
   );
+
+  // Auto-navigate to stand-up screen when timer expires
+  useEffect(() => {
+    if (sittingStatus === 'stand_due') {
+      // Navigate to standup screen - it will handle starting the standing timer
+      router.push('/standup');
+    }
+  }, [sittingStatus, router]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -89,9 +97,7 @@ export default function CommandCenterScreen() {
         <View style={styles.row}>
           {/* Sitting Mode */}
           <SittingModeCard
-            isSitting={isSitting}
-            sittingMinutes={sittingMinutes}
-            onPress={() => {}}
+            onStandDue={() => router.push('/standup')}
           />
 
           {/* Log Food */}

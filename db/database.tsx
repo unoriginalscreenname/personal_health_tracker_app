@@ -5,6 +5,7 @@ import {
   CREATE_TABLES_SQL,
   ADD_DAILY_STATS_TABLE_SQL,
   ADD_WORKOUT_TABLES_SQL,
+  ADD_SITTING_SESSIONS_TABLE_SQL,
   seedDefaultFoods,
   seedDefaultSupplements,
   seedDefaultExercises,
@@ -69,6 +70,13 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.execAsync(ADD_WORKOUT_TABLES_SQL);
     await seedDefaultExercises(db);
     console.log('Migration to v3 complete');
+  }
+
+  // Version 3 -> 4: Add sitting_sessions table
+  if (currentVersion <= 3 && currentVersion > 0) {
+    console.log('Migrating database to v4 (adding sitting_sessions)...');
+    await db.execAsync(ADD_SITTING_SESSIONS_TABLE_SQL);
+    console.log('Migration to v4 complete');
   }
 
   // Update version

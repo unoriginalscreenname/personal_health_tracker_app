@@ -27,3 +27,7 @@ export {
   type Exercise,
   type LastWeightSessionInfo,
 } from './hooks/useWorkouts';
+export {
+  useSittingSessions,
+  type SittingSession,
+} from './hooks/useSittingSessions';

@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 // Schema version - increment when making changes
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 
 // SQL statements for creating tables
 export const CREATE_TABLES_SQL = `
@@ -121,6 +121,17 @@ export const CREATE_TABLES_SQL = `
     FOREIGN KEY (exercise_id) REFERENCES exercises(id)
   );
   CREATE INDEX IF NOT EXISTS idx_weight_exercise_logs_session ON weight_exercise_logs(session_id);
+
+  -- Sitting sessions: completed sit/stand cycles
+  CREATE TABLE IF NOT EXISTS sitting_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    sit_duration_minutes INTEGER NOT NULL,
+    exercises_completed TEXT,
+    completed_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_sitting_sessions_date ON sitting_sessions(date);
 `;
 
 // SQL for adding daily_stats table (v1 -> v2 migration)
@@ -183,6 +194,19 @@ export const ADD_WORKOUT_TABLES_SQL = `
     FOREIGN KEY (exercise_id) REFERENCES exercises(id)
   );
   CREATE INDEX IF NOT EXISTS idx_weight_exercise_logs_session ON weight_exercise_logs(session_id);
+`;
+
+// SQL for adding sitting_sessions table (v3 -> v4 migration)
+export const ADD_SITTING_SESSIONS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS sitting_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    sit_duration_minutes INTEGER NOT NULL,
+    exercises_completed TEXT,
+    completed_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_sitting_sessions_date ON sitting_sessions(date);
 `;
 
 // Default foods to seed
