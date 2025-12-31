@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 // Schema version - increment when making changes
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 
 // SQL statements for creating tables
 export const CREATE_TABLES_SQL = `

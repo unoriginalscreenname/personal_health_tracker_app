@@ -36,6 +36,7 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
     'PRAGMA user_version'
   );
   const currentVersion = result?.user_version ?? 0;
+  console.log(`Database version: ${currentVersion}, target: ${DATABASE_VERSION}`);
 
   // Already up to date
   if (currentVersion >= DATABASE_VERSION) {
@@ -73,10 +74,17 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
   }
 
   // Version 3 -> 4: Add sitting_sessions table
-  if (currentVersion <= 3 && currentVersion > 0) {
+  if (currentVersion >= 1 && currentVersion <= 3) {
     console.log('Migrating database to v4 (adding sitting_sessions)...');
     await db.execAsync(ADD_SITTING_SESSIONS_TABLE_SQL);
     console.log('Migration to v4 complete');
+  }
+
+  // Version 4 -> 5: Ensure sitting_sessions table exists (fix for missed v4 migration)
+  if (currentVersion === 4) {
+    console.log('Migrating database to v5 (ensuring sitting_sessions exists)...');
+    await db.execAsync(ADD_SITTING_SESSIONS_TABLE_SQL);
+    console.log('Migration to v5 complete');
   }
 
   // Update version

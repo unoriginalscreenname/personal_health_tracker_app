@@ -33,7 +33,8 @@ const SittingTimerContext = createContext<SittingTimerContextValue | null>(null)
 // Configure notification handler (call this once in app setup)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
