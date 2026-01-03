@@ -37,30 +37,31 @@ function calculateFastingState(now: Date): FastingState {
     };
   } else {
     // Fasting: 6 PM - 11:59 AM
-    // Calculate time elapsed since 6 PM
-    let elapsedMinutes: number;
+    // Calculate time remaining until noon (when eating window opens)
+    let remainingMinutes: number;
 
     if (hour >= FAST_START_HOUR) {
       // Evening: 6 PM - 11:59 PM (same day)
-      elapsedMinutes = (hour - FAST_START_HOUR) * 60 + minute;
+      // Remaining = hours until midnight + 12 hours until noon
+      remainingMinutes = (24 - hour - 1) * 60 + (60 - minute) + (FAST_END_HOUR * 60);
     } else {
-      // Morning: 12:00 AM - 11:59 AM (next day, fast started yesterday)
-      // Hours from 6 PM to midnight = 6 hours
-      // Plus hours from midnight to now
-      elapsedMinutes = (24 - FAST_START_HOUR + hour) * 60 + minute;
+      // Morning: 12:00 AM - 11:59 AM (next day)
+      // Remaining = hours until noon
+      remainingMinutes = (FAST_END_HOUR - hour - 1) * 60 + (60 - minute);
     }
 
-    const elapsedHours = Math.floor(elapsedMinutes / 60);
-    const elapsedMins = elapsedMinutes % 60;
+    const remainingHours = Math.floor(remainingMinutes / 60);
+    const remainingMins = remainingMinutes % 60;
 
-    // Progress: how much of the 18-hour fast has passed
+    // Progress: how much of the 18-hour fast has passed (for progress bar)
     const totalFastingMinutes = 18 * 60;
+    const elapsedMinutes = totalFastingMinutes - remainingMinutes;
     const progress = Math.min(elapsedMinutes / totalFastingMinutes, 1);
 
     return {
       isFasting: true,
-      hours: elapsedHours,
-      minutes: elapsedMins,
+      hours: remainingHours,
+      minutes: remainingMins,
       progress,
     };
   }

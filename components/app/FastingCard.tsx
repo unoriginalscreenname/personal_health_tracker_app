@@ -55,11 +55,7 @@ export function FastingCard({ date }: FastingCardProps) {
             <Text style={[styles.timerText, { color: isFasting ? colors.fasting.primary : colors.eating.primary }]}>
               {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}
             </Text>
-            {isFasting ? (
-              <Text style={styles.timerTarget}>/ 18:00</Text>
-            ) : (
-              <Text style={[styles.timerTarget, styles.timerRemaining]}>remaining</Text>
-            )}
+            <Text style={[styles.timerTarget, styles.timerRemaining]}>remaining</Text>
           </View>
         </View>
         <View style={styles.progressTrack}>
