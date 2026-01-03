@@ -3,12 +3,17 @@ import { AppState, AppStateStatus, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
 // Timer durations in seconds
-// const SIT_DURATION_SECONDS = 60 * 60; // 1 hour
-// const STAND_DURATION_SECONDS = 2 * 60; // 2 minutes
+const DEFAULT_SIT_DURATION_SECONDS = 45 * 60; // 45 minutes
+const STAND_DURATION_SECONDS = 2 * 60; // 2 minutes
 
-// For testing, use shorter durations:
-const SIT_DURATION_SECONDS = 10; // 10 seconds
-const STAND_DURATION_SECONDS = 5; // 5 seconds
+// Available duration presets
+export const DURATION_PRESETS = [
+  { label: '5 sec', seconds: 5 },
+  { label: '15 min', seconds: 15 * 60 },
+  { label: '30 min', seconds: 30 * 60 },
+  { label: '45 min', seconds: 45 * 60 },
+  { label: '60 min', seconds: 60 * 60 },
+] as const;
 
 export type TimerStatus = 'idle' | 'sitting' | 'stand_due' | 'standing';
 
@@ -18,6 +23,7 @@ export interface SittingTimerState {
   standStartTime: number | null;  // timestamp when stand exercise started
   timeRemaining: number;          // seconds remaining (sit or stand)
   sitDurationMinutes: number;     // how long the sit session was (for logging)
+  sitDurationSeconds: number;     // current sit duration setting
 }
 
 interface SittingTimerContextValue extends SittingTimerState {
@@ -26,6 +32,7 @@ interface SittingTimerContextValue extends SittingTimerState {
   startStanding: () => void;
   completeStanding: (exercises: string[], autoRestart?: boolean) => Promise<void>;
   cancelStanding: () => void;
+  setSitDuration: (seconds: number) => void;
 }
 
 const SittingTimerContext = createContext<SittingTimerContextValue | null>(null);
@@ -47,6 +54,7 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
     standStartTime: null,
     timeRemaining: 0,
     sitDurationMinutes: 0,
+    sitDurationSeconds: DEFAULT_SIT_DURATION_SECONDS,
   });
 
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -94,14 +102,14 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
   const updateTimer = useCallback(() => {
     setState(prev => {
       if (prev.status === 'sitting' && prev.sitStartTime) {
-        const remaining = calculateTimeRemaining(prev.sitStartTime, SIT_DURATION_SECONDS);
+        const remaining = calculateTimeRemaining(prev.sitStartTime, prev.sitDurationSeconds);
         if (remaining <= 0) {
           // Timer expired - transition to stand_due
           return {
             ...prev,
             status: 'stand_due',
             timeRemaining: 0,
-            sitDurationMinutes: Math.round(SIT_DURATION_SECONDS / 60),
+            sitDurationMinutes: Math.round(prev.sitDurationSeconds / 60),
           };
         }
         return { ...prev, timeRemaining: remaining };
@@ -158,6 +166,13 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
     console.log('[SittingTimer] Starting sit timer');
     const now = Date.now();
 
+    // Get current duration from state
+    let currentDuration = DEFAULT_SIT_DURATION_SECONDS;
+    setState(prev => {
+      currentDuration = prev.sitDurationSeconds;
+      return prev; // No change, just reading
+    });
+
     // Schedule notification for when sit time is up
     try {
       const id = await Notifications.scheduleNotificationAsync({
@@ -169,7 +184,7 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: SIT_DURATION_SECONDS,
+          seconds: currentDuration,
         },
       });
       notificationId.current = id;
@@ -179,13 +194,14 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
       // Continue anyway - notification is optional
     }
 
-    setState({
+    setState(prev => ({
+      ...prev,
       status: 'sitting',
       sitStartTime: now,
       standStartTime: null,
-      timeRemaining: SIT_DURATION_SECONDS,
+      timeRemaining: prev.sitDurationSeconds,
       sitDurationMinutes: 0,
-    });
+    }));
     console.log('[SittingTimer] State set to sitting');
   }, []);
 
@@ -205,13 +221,14 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
       notificationId.current = null;
     }
 
-    setState({
+    setState(prev => ({
+      ...prev,
       status: 'idle',
       sitStartTime: null,
       standStartTime: null,
       timeRemaining: 0,
       sitDurationMinutes: 0,
-    });
+    }));
     console.log('[SittingTimer] State set to idle');
   }, []);
 
@@ -236,25 +253,35 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
       // Auto-start next sitting session
       await startSitting();
     } else {
-      setState({
+      setState(prev => ({
+        ...prev,
         status: 'idle',
         sitStartTime: null,
         standStartTime: null,
         timeRemaining: 0,
         sitDurationMinutes: 0,
-      });
+      }));
     }
   }, [startSitting]);
 
   // Cancel standing exercise
   const cancelStanding = useCallback(() => {
-    setState({
+    setState(prev => ({
+      ...prev,
       status: 'idle',
       sitStartTime: null,
       standStartTime: null,
       timeRemaining: 0,
       sitDurationMinutes: 0,
-    });
+    }));
+  }, []);
+
+  // Set sit duration (only when idle)
+  const setSitDuration = useCallback((seconds: number) => {
+    setState(prev => ({
+      ...prev,
+      sitDurationSeconds: seconds,
+    }));
   }, []);
 
   const value: SittingTimerContextValue = {
@@ -264,6 +291,7 @@ export function SittingTimerProvider({ children }: { children: ReactNode }) {
     startStanding,
     completeStanding,
     cancelStanding,
+    setSitDuration,
   };
 
   return (

@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
-import { Play, Pause, AlertCircle } from 'lucide-react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, Modal } from 'react-native';
+import { Play, Pause, AlertCircle, X } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
-import { useSittingTimer, formatTimeRemaining } from '@/hooks/useSittingTimer';
+import { useSittingTimer, formatTimeRemaining, DURATION_PRESETS } from '@/hooks/useSittingTimer';
 
 interface SittingModeCardProps {
   onStandDue?: () => void;  // Callback when user should navigate to stand-up screen
@@ -11,16 +12,36 @@ export function SittingModeCard({ onStandDue }: SittingModeCardProps) {
   const {
     status,
     timeRemaining,
+    sitDurationSeconds,
     startSitting,
     cancelSitting,
     startStanding,
+    setSitDuration,
   } = useSittingTimer();
+
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
+
+  // Format duration for display in button label
+  const getDurationLabel = () => {
+    if (sitDurationSeconds < 60) return `${sitDurationSeconds}s`;
+    return `${Math.round(sitDurationSeconds / 60)}`;
+  };
 
   const handleCancelConfirmed = async () => {
     try {
       await cancelSitting();
     } catch (error) {
       console.error('Failed to cancel sitting:', error);
+    }
+  };
+
+  const handleDurationSelect = async (seconds: number) => {
+    setSitDuration(seconds);
+    setShowDurationPicker(false);
+    try {
+      await startSitting();
+    } catch (err) {
+      console.error('Failed to start sitting:', err);
     }
   };
 
@@ -61,6 +82,12 @@ export function SittingModeCard({ onStandDue }: SittingModeCardProps) {
     }
   };
 
+  const handleLongPress = () => {
+    if (status === 'idle') {
+      setShowDurationPicker(true);
+    }
+  };
+
   // Render based on status
   const renderContent = () => {
     switch (status) {
@@ -70,8 +97,8 @@ export function SittingModeCard({ onStandDue }: SittingModeCardProps) {
             <View style={styles.sitButton}>
               <Play color={colors.text.primary} size={28} style={{ marginLeft: 3 }} />
             </View>
-            <Text style={styles.sitLabel}>START SIT</Text>
-            <Text style={styles.sitHint}>Tap to begin</Text>
+            <Text style={styles.sitLabel}>START SIT ({getDurationLabel()})</Text>
+            <Text style={styles.sitHint}>Hold to change</Text>
           </>
         );
 
@@ -111,20 +138,70 @@ export function SittingModeCard({ onStandDue }: SittingModeCardProps) {
   };
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.card,
-        styles.halfCard,
-        styles.sitCard,
-        status === 'stand_due' && styles.sitCardStandDue,
-        pressed && styles.cardPressed
-      ]}
-      onPress={handlePress}
-    >
-      <View style={styles.sitContent}>
-        {renderContent()}
-      </View>
-    </Pressable>
+    <>
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          styles.halfCard,
+          styles.sitCard,
+          status === 'stand_due' && styles.sitCardStandDue,
+          pressed && styles.cardPressed
+        ]}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        delayLongPress={400}
+      >
+        <View style={styles.sitContent}>
+          {renderContent()}
+        </View>
+      </Pressable>
+
+      <Modal
+        visible={showDurationPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDurationPicker(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowDurationPicker(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sit Duration</Text>
+              <Pressable
+                onPress={() => setShowDurationPicker(false)}
+                style={styles.modalClose}
+              >
+                <X color={colors.text.muted} size={20} />
+              </Pressable>
+            </View>
+            <View style={styles.durationOptions}>
+              {DURATION_PRESETS.map((preset) => (
+                <Pressable
+                  key={preset.seconds}
+                  style={({ pressed }) => [
+                    styles.durationOption,
+                    preset.seconds === sitDurationSeconds && styles.durationOptionActive,
+                    pressed && styles.durationOptionPressed,
+                  ]}
+                  onPress={() => handleDurationSelect(preset.seconds)}
+                >
+                  <Text
+                    style={[
+                      styles.durationOptionText,
+                      preset.seconds === sitDurationSeconds && styles.durationOptionTextActive,
+                    ]}
+                  >
+                    {preset.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -209,5 +286,60 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.accent.orange,
     marginTop: spacing.xs,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    width: '80%',
+    maxWidth: 300,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  modalClose: {
+    padding: spacing.xs,
+  },
+  durationOptions: {
+    gap: spacing.sm,
+  },
+  durationOption: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background.tertiary,
+    alignItems: 'center',
+  },
+  durationOptionActive: {
+    backgroundColor: colors.accent.blue + '30',
+    borderWidth: 1,
+    borderColor: colors.accent.blue,
+  },
+  durationOptionPressed: {
+    opacity: 0.7,
+  },
+  durationOptionText: {
+    fontSize: fontSize.md,
+    fontWeight: '500',
+    color: colors.text.secondary,
+  },
+  durationOptionTextActive: {
+    color: colors.accent.blue,
+    fontWeight: '600',
   },
 });
