@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronLeft, Check, Trash2 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
@@ -9,6 +9,7 @@ import { useWorkouts, type BoxingSession } from '@/db';
 
 export default function BoxingSessionScreen() {
   const router = useRouter();
+  const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const {
     getToday,
     formatTimeLocal,
@@ -19,6 +20,9 @@ export default function BoxingSessionScreen() {
     deleteBoxingSession,
   } = useWorkouts();
 
+  // Use date from param or default to today
+  const targetDate = useMemo(() => dateParam || getToday(), [dateParam, getToday]);
+
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<BoxingSession | null>(null);
   const [duration, setDuration] = useState(15);
@@ -26,13 +30,12 @@ export default function BoxingSessionScreen() {
   const [tempDuration, setTempDuration] = useState('15');
 
   const loadData = useCallback(async () => {
-    const today = getToday();
-    let boxingSession = await getBoxingSessionForDate(today);
+    let boxingSession = await getBoxingSessionForDate(targetDate);
 
     // Auto-create session if none exists
     if (!boxingSession) {
-      await createBoxingSession(15);
-      boxingSession = await getBoxingSessionForDate(today);
+      await createBoxingSession(15, targetDate);
+      boxingSession = await getBoxingSessionForDate(targetDate);
     }
 
     if (boxingSession) {
@@ -40,7 +43,7 @@ export default function BoxingSessionScreen() {
       setDuration(boxingSession.duration_minutes);
     }
     setLoading(false);
-  }, [getToday, getBoxingSessionForDate, createBoxingSession]);
+  }, [targetDate, getBoxingSessionForDate, createBoxingSession]);
 
   useFocusEffect(
     useCallback(() => {
@@ -64,11 +67,10 @@ export default function BoxingSessionScreen() {
 
     if (session) {
       await updateBoxingDuration(session.id, newDuration);
-      const today = getToday();
-      const updated = await getBoxingSessionForDate(today);
+      const updated = await getBoxingSessionForDate(targetDate);
       setSession(updated);
     }
-  }, [tempDuration, session, updateBoxingDuration, getToday, getBoxingSessionForDate]);
+  }, [tempDuration, session, updateBoxingDuration, targetDate, getBoxingSessionForDate]);
 
   const handleComplete = useCallback(async () => {
     if (!session) return;

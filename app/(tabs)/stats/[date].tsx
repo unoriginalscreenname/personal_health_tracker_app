@@ -12,6 +12,7 @@ import {
   Circle,
   X,
   Trash2,
+  Dumbbell,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import {
@@ -22,6 +23,7 @@ import {
 import { NutritionCard } from '@/components/app/NutritionCard';
 import { SupplementsCard } from '@/components/app/SupplementsCard';
 import { FoodTimeline } from '@/components/app/FoodTimeline';
+import { WorkoutSummaryCard } from '@/components/app/WorkoutSummaryCard';
 
 // Helper to format Date to YYYY-MM-DD in local timezone
 function formatDateLocal(d: Date): string {
@@ -252,6 +254,28 @@ export default function DayDetailScreen() {
             )}
           </View>
           <SupplementsCard date={currentDate} onUpdate={loadData} />
+        </View>
+
+        {/* Workouts Section */}
+        <View style={styles.workoutsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>WORKOUTS</Text>
+            {dayStats && (
+              <View style={[
+                styles.sectionIndicator,
+                dayStats.workout_complete ? styles.sectionIndicatorSuccess : styles.sectionIndicatorFail,
+              ]}>
+                {dayStats.workout_complete ? (
+                  <Dumbbell color={colors.accent.green} size={14} strokeWidth={2.5} />
+                ) : dayStats.finalized ? (
+                  <Dumbbell color={colors.text.dim} size={14} strokeWidth={2} />
+                ) : (
+                  <Dumbbell color={colors.text.dim} size={14} strokeWidth={2} />
+                )}
+              </View>
+            )}
+          </View>
+          <WorkoutSummaryCard date={currentDate} onUpdate={loadData} />
         </View>
 
         {/* Delete Date Button */}
@@ -512,6 +536,11 @@ const styles = StyleSheet.create({
 
   // Supplements
   supplementsSection: {
+    marginTop: spacing.lg,
+  },
+
+  // Workouts
+  workoutsSection: {
     marginTop: spacing.lg,
   },
 

@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Dumbbell, CircleDot, Check, ChevronRight, Circle } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
@@ -14,6 +14,7 @@ import {
 
 export default function WorkoutScreen() {
   const router = useRouter();
+  const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const {
     getToday,
     formatTimeLocal,
@@ -23,23 +24,25 @@ export default function WorkoutScreen() {
     createWeightSession,
   } = useWorkouts();
 
+  // Use date from param or default to today
+  const targetDate = useMemo(() => dateParam || getToday(), [dateParam, getToday]);
+
   const [loading, setLoading] = useState(true);
   const [boxingSession, setBoxingSession] = useState<BoxingSession | null>(null);
   const [weightSession, setWeightSession] = useState<WeightSession | null>(null);
   const [lastWeightInfo, setLastWeightInfo] = useState<LastWeightSessionInfo | null>(null);
 
   const loadData = useCallback(async () => {
-    const today = getToday();
     const [boxing, weights, lastWeight] = await Promise.all([
-      getBoxingSessionForDate(today),
-      getWeightSessionForDate(today),
+      getBoxingSessionForDate(targetDate),
+      getWeightSessionForDate(targetDate),
       getLastWeightSession(),
     ]);
     setBoxingSession(boxing);
     setWeightSession(weights);
     setLastWeightInfo(lastWeight);
     setLoading(false);
-  }, [getToday, getBoxingSessionForDate, getWeightSessionForDate, getLastWeightSession]);
+  }, [targetDate, getBoxingSessionForDate, getWeightSessionForDate, getLastWeightSession]);
 
   useFocusEffect(
     useCallback(() => {
@@ -48,20 +51,34 @@ export default function WorkoutScreen() {
   );
 
   const handleBoxingPress = useCallback(() => {
-    router.push('/(tabs)/workout/boxing' as any);
-  }, [router]);
+    // Pass date param if we have one (for historical dates)
+    if (dateParam) {
+      router.push(`/workout/boxing?date=${targetDate}`);
+    } else {
+      router.push('/(tabs)/workout/boxing' as any);
+    }
+  }, [router, dateParam, targetDate]);
 
   const handleStartWeights = useCallback(async (type: 'a' | 'b') => {
-    await createWeightSession(type);
-    const today = getToday();
-    const session = await getWeightSessionForDate(today);
+    await createWeightSession(type, targetDate);
+    const session = await getWeightSessionForDate(targetDate);
     setWeightSession(session);
-    router.push('/(tabs)/workout/weights' as any);
-  }, [createWeightSession, getToday, getWeightSessionForDate, router]);
+    // Pass date param if we have one (for historical dates)
+    if (dateParam) {
+      router.push(`/workout/weights?date=${targetDate}`);
+    } else {
+      router.push('/(tabs)/workout/weights' as any);
+    }
+  }, [createWeightSession, targetDate, getWeightSessionForDate, router, dateParam]);
 
   const handleWeightsPress = useCallback(() => {
-    router.push('/(tabs)/workout/weights' as any);
-  }, [router]);
+    // Pass date param if we have one (for historical dates)
+    if (dateParam) {
+      router.push(`/workout/weights?date=${targetDate}`);
+    } else {
+      router.push('/(tabs)/workout/weights' as any);
+    }
+  }, [router, dateParam, targetDate]);
 
   const suggestedType = lastWeightInfo
     ? (lastWeightInfo.type === 'a' ? 'b' : 'a')

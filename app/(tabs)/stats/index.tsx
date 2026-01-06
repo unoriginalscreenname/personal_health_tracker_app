@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useState, useCallback } from 'react';
-import { ChevronLeft, Check, X, Circle } from 'lucide-react-native';
+import { ChevronLeft, Check, X, Circle, Dumbbell } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
 import { useDailyStats, type DailyStats } from '@/db';
 
@@ -111,6 +111,19 @@ export default function StatsHistoryScreen() {
                     <X color={colors.accent.red} size={14} strokeWidth={3} />
                   ) : (
                     <Circle color={colors.text.dim} size={14} />
+                  )}
+                </View>
+                {/* Workout indicator */}
+                <View style={[
+                  styles.indicator,
+                  day.workout_complete ? styles.indicatorSuccess : styles.indicatorFail,
+                ]}>
+                  {day.workout_complete ? (
+                    <Dumbbell color={colors.accent.green} size={14} strokeWidth={2.5} />
+                  ) : day.finalized ? (
+                    <Dumbbell color={colors.text.dim} size={14} strokeWidth={2} />
+                  ) : (
+                    <Dumbbell color={colors.text.dim} size={14} strokeWidth={2} />
                   )}
                 </View>
               </View>

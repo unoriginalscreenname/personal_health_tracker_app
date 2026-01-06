@@ -5,6 +5,7 @@ export interface DailyStats {
   date: string;
   fasting_compliant: number;
   supplements_complete: number;
+  workout_complete: number;
   finalized: number;
 }
 
@@ -256,7 +257,7 @@ export function useDailyStats() {
     endDate: string
   ): Promise<DailyStats[]> => {
     return db.getAllAsync(`
-      SELECT date, fasting_compliant, supplements_complete, finalized
+      SELECT date, fasting_compliant, supplements_complete, workout_complete, finalized
       FROM daily_stats
       WHERE date BETWEEN ? AND ?
       ORDER BY date

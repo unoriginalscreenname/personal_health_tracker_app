@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronLeft, Check, Circle, Trash2 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize } from '@/constants/theme';
@@ -9,6 +9,7 @@ import { useWorkouts, type WeightSession, type ExerciseLog } from '@/db';
 
 export default function WeightsSessionScreen() {
   const router = useRouter();
+  const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const {
     getToday,
     getWeightSessionForDate,
@@ -16,6 +17,9 @@ export default function WeightsSessionScreen() {
     completeWeightSession,
     deleteWeightSession,
   } = useWorkouts();
+
+  // Use date from param or default to today
+  const targetDate = useMemo(() => dateParam || getToday(), [dateParam, getToday]);
 
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<WeightSession | null>(null);
@@ -27,14 +31,13 @@ export default function WeightsSessionScreen() {
   const [tempValue, setTempValue] = useState('');
 
   const loadData = useCallback(async () => {
-    const today = getToday();
-    const weightSession = await getWeightSessionForDate(today);
+    const weightSession = await getWeightSessionForDate(targetDate);
     if (weightSession) {
       setSession(weightSession);
       setExercises(weightSession.exercises);
     }
     setLoading(false);
-  }, [getToday, getWeightSessionForDate]);
+  }, [targetDate, getWeightSessionForDate]);
 
   useFocusEffect(
     useCallback(() => {
