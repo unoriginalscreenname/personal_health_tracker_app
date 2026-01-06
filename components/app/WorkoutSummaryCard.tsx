@@ -37,16 +37,16 @@ export function WorkoutSummaryCard({ date, onUpdate }: WorkoutSummaryCardProps) 
     }, [date, getBoxingSessionForDate, getWeightSessionForDate])
   );
 
-  // Navigate to boxing screen with date
+  // Navigate to boxing screen with date (root-level screen)
   const handleBoxingPress = useCallback(() => {
-    router.push(`/workout/boxing?date=${date}`);
+    router.push(`/boxing?date=${date}`);
   }, [router, date]);
 
-  // Navigate to weights screen (or index if no session exists)
+  // Navigate to weights screen (or workout index if no session exists)
   const handleWeightsPress = useCallback(() => {
     if (weightsSession) {
-      // Edit existing session
-      router.push(`/workout/weights?date=${date}`);
+      // Edit existing session (root-level screen)
+      router.push(`/weights?date=${date}`);
     } else {
       // Create new session - go to workout index to select type
       router.push(`/workout?date=${date}`);

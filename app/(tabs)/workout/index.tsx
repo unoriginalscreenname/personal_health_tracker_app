@@ -51,11 +51,11 @@ export default function WorkoutScreen() {
   );
 
   const handleBoxingPress = useCallback(() => {
-    // Pass date param if we have one (for historical dates)
+    // Navigate to root-level boxing screen with date if provided
     if (dateParam) {
-      router.push(`/workout/boxing?date=${targetDate}`);
+      router.push(`/boxing?date=${targetDate}`);
     } else {
-      router.push('/(tabs)/workout/boxing' as any);
+      router.push('/boxing');
     }
   }, [router, dateParam, targetDate]);
 
@@ -63,20 +63,20 @@ export default function WorkoutScreen() {
     await createWeightSession(type, targetDate);
     const session = await getWeightSessionForDate(targetDate);
     setWeightSession(session);
-    // Pass date param if we have one (for historical dates)
+    // Navigate to root-level weights screen with date if provided
     if (dateParam) {
-      router.push(`/workout/weights?date=${targetDate}`);
+      router.push(`/weights?date=${targetDate}`);
     } else {
-      router.push('/(tabs)/workout/weights' as any);
+      router.push('/weights');
     }
   }, [createWeightSession, targetDate, getWeightSessionForDate, router, dateParam]);
 
   const handleWeightsPress = useCallback(() => {
-    // Pass date param if we have one (for historical dates)
+    // Navigate to root-level weights screen with date if provided
     if (dateParam) {
-      router.push(`/workout/weights?date=${targetDate}`);
+      router.push(`/weights?date=${targetDate}`);
     } else {
-      router.push('/(tabs)/workout/weights' as any);
+      router.push('/weights');
     }
   }, [router, dateParam, targetDate]);
 

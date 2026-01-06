@@ -23,6 +23,8 @@ export default function RootLayout() {
             <Stack.Screen name="custom-food" />
             <Stack.Screen name="entry/[id]" />
             <Stack.Screen name="standup" />
+            <Stack.Screen name="boxing" />
+            <Stack.Screen name="weights" />
           </Stack>
         </View>
       </SittingTimerProvider>
