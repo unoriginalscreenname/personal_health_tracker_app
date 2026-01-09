@@ -26,8 +26,8 @@ export default function CustomFoodScreen() {
       targetEntryId = await createEntry(undefined, targetDate);
     }
 
-    // Add the custom food item
-    await addCustomItemToEntry(
+    // Add the custom food item and get the item ID
+    const itemId = await addCustomItemToEntry(
       targetEntryId,
       data.name,
       data.protein,
@@ -36,7 +36,17 @@ export default function CustomFoodScreen() {
       data.description ?? null
     );
 
-    router.back();
+    // Navigate back to add-food with info about what was added
+    // Use replace to avoid building up the navigation stack
+    router.replace({
+      pathname: '/add-food',
+      params: {
+        date: targetDate,
+        entryId: targetEntryId.toString(),
+        justAddedName: data.name,
+        justAddedItemId: itemId.toString(),
+      },
+    });
   }, [entryId, targetDate, createEntry, addCustomItemToEntry, router]);
 
   return (
