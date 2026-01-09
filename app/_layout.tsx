@@ -4,12 +4,14 @@ import { View, StyleSheet } from 'react-native';
 import { colors } from '@/constants/theme';
 import { DatabaseProvider } from '@/db';
 import { SittingTimerProvider } from '@/hooks/useSittingTimer.tsx';
+import { FastingNotificationProvider } from '@/hooks/useFastingNotifications';
 
 export default function RootLayout() {
   return (
     <DatabaseProvider>
       <SittingTimerProvider>
-        <View style={styles.container}>
+        <FastingNotificationProvider>
+          <View style={styles.container}>
           <StatusBar style="light" />
           <Stack
             screenOptions={{
@@ -26,7 +28,8 @@ export default function RootLayout() {
             <Stack.Screen name="boxing" />
             <Stack.Screen name="weights" />
           </Stack>
-        </View>
+          </View>
+        </FastingNotificationProvider>
       </SittingTimerProvider>
     </DatabaseProvider>
   );
